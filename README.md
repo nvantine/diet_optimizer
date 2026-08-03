@@ -1,16 +1,39 @@
-# React + Vite
+# Food Optimizer
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A dark-mode frontend diet optimizer built with React, Vite, Recharts, and `javascript-lp-solver`.
 
-Currently, two official plugins are available:
+The app lets you:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- search OpenFoodFacts for foods,
+- add foods manually when the external API is down,
+- enter your own prices,
+- set calorie/protein/sodium constraints,
+- solve for the lowest-cost food combination,
+- view selected servings and a protein/cost tradeoff curve.
 
-## React Compiler
+## Model
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The optimizer uses linear programming. Each selected food gets a non-negative decision variable representing 100g units. The objective minimizes total cost while satisfying nutrition constraints.
 
-## Expanding the Oxlint configuration
+OpenFoodFacts nutrition values are normalized as `per 100g`. Because OpenFoodFacts does not include price data, costs are user-entered as dollars per 100g.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+## Tests and checks
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+## GitHub Pages
+
+The Vite `base` is set to `/diet_optimizer/`. The included GitHub Actions workflow builds and deploys `dist/` to GitHub Pages when changes land on `main`.
+
+In GitHub, enable Pages with **Settings → Pages → Source: GitHub Actions** if it is not already enabled.

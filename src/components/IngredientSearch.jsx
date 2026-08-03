@@ -1,4 +1,3 @@
-// IngredientSearch.jsx
 import { useState } from 'react';
 import { searchFoods } from '../lib/foodApi';
 
@@ -8,44 +7,54 @@ export default function IngredientSearch({ onAdd }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  async function handleSearch(e) {
-    e.preventDefault();
+  async function handleSearch(event) {
+    event.preventDefault();
+    if (!query.trim()) return;
     setLoading(true);
     setError(null);
     try {
-      setResults(await searchFoods(query));
-    } catch (err) {
-      setError('Search failed — try again.');
+      const foods = await searchFoods(query);
+      setResults(foods);
+      if (foods.length === 0) {
+        setError('No matching products found. Try a broader term or add it manually.');
+      }
+    } catch (error) {
+      setError(`${error.message}. You can still add the food manually below.`);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div>
-      <form onSubmit={handleSearch}>
+    <div className="search-card">
+      <form className="search-row" onSubmit={handleSearch}>
+        <label className="sr-only" htmlFor="ingredient-search">Search ingredients</label>
         <input
+          id="ingredient-search"
           value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Search ingredients (e.g. chicken breast, oats, lentils)..."
+          onChange={event => setQuery(event.target.value)}
+          placeholder="Search OpenFoodFacts: oats, chicken breast, lentils..."
         />
-        <button type="submit" disabled={loading}>
+        <button type="submit" disabled={loading || !query.trim()}>
           {loading ? 'Searching...' : 'Search'}
         </button>
       </form>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p className="alert">{error}</p>}
 
       {results.length > 0 && (
-        <ul>
-          {results.map(f => (
-            <li key={f.id}>
-              {f.name} {f.brand && <small>({f.brand})</small>} — {f.calories} kcal, {f.protein}g protein
-              /100g
-              <button onClick={() => onAdd(f)}>Add</button>
-            </li>
+        <div className="results-list" aria-label="Search results">
+          {results.map(food => (
+            <article className="result-card" key={food.id}>
+              <div>
+                <strong>{food.name}</strong>
+                {food.brand && <span className="muted"> · {food.brand}</span>}
+                <p className="muted">{food.calories} kcal · {food.protein}g protein · {food.sodium}mg sodium / 100g</p>
+              </div>
+              <button onClick={() => onAdd(food)}>Add</button>
+            </article>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

@@ -1,30 +1,76 @@
-// solver.js
 import solver from 'javascript-lp-solver';
 
+const DEFAULT_MAX_SODIUM = 1e9;
+
 export function buildAndSolve(foods, goals) {
-  const { minCalories, minProtein, maxSodium } = goals;
+  if (!foods.length) {
+    return normalizeResult({ feasible: false }, foods);
+  }
 
   const model = {
     optimize: 'cost',
     opType: 'min',
     constraints: {
-      calories: { min: minCalories || 0 },
-      protein: { min: minProtein || 0 },
-      sodium: { max: maxSodium ?? 1e9 },
+      calories: { min: toNumber(goals.minCalories, 0) },
+      protein: { min: toNumber(goals.minProtein, 0) },
+      sodium: { max: toNumber(goals.maxSodium, DEFAULT_MAX_SODIUM) },
     },
     variables: {},
   };
 
-  foods.forEach(f => {
-    model.variables[f.name] = {
-      cost: f.cost,
-      calories: f.calories,
-      protein: f.protein,
-      sodium: f.sodium,
-      [f.name]: 1, // ties into the per-food max-serving constraint below
+  for (const food of foods) {
+    const variableKey = variableName(food.id);
+    model.variables[variableKey] = {
+      cost: toNumber(food.cost, 0),
+      calories: toNumber(food.calories, 0),
+      protein: toNumber(food.protein, 0),
+      sodium: toNumber(food.sodium, 0),
+      [variableKey]: 1,
     };
-    model.constraints[f.name] = { max: f.maxServing ?? 10 };
-  });
+    model.constraints[variableKey] = { max: toNumber(food.maxServing, 10) };
+  }
 
-  return solver.Solve(model); // { feasible, result, [foodName]: servings, ... }
+  return normalizeResult(solver.Solve(model), foods);
+}
+
+function normalizeResult(raw, foods) {
+  if (!raw.feasible) {
+    return {
+      feasible: false,
+      bounded: Boolean(raw.bounded),
+      totalCost: Number.POSITIVE_INFINITY,
+      result: Number.POSITIVE_INFINITY,
+      servingsByFoodId: {},
+    };
+  }
+
+  const servingsByFoodId = {};
+  for (const food of foods) {
+    const servings = raw[variableName(food.id)] || 0;
+    if (servings > 1e-6) {
+      servingsByFoodId[food.id] = round(servings);
+    }
+  }
+
+  return {
+    feasible: true,
+    bounded: Boolean(raw.bounded),
+    totalCost: round(raw.result || 0),
+    result: round(raw.result || 0),
+    servingsByFoodId,
+  };
+}
+
+function variableName(id) {
+  return `food_${String(id).replace(/[^a-zA-Z0-9_]/g, '_')}`;
+}
+
+function toNumber(value, fallback) {
+  if (value === '' || value == null) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function round(value) {
+  return Math.round(value * 10000) / 10000;
 }

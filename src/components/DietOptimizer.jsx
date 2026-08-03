@@ -1,87 +1,133 @@
-// DietOptimizer.jsx
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { buildAndSolve } from '../lib/solver';
-import { BarChart, Bar, XAxis, YAxis, LineChart, Line, CartesianGrid, Tooltip } from 'recharts';
-import IngredientSearch from './IngredientSearch';
-import IngredientList from './IngredientList';
 import GoalsPanel from './GoalsPanel';
+import IngredientList from './IngredientList';
+import IngredientSearch from './IngredientSearch';
+import ManualFoodForm from './ManualFoodForm';
 
 const DEFAULT_GOALS = {
-  minCalories: 0,
-  minProtein: 0,
-  maxSodium: 100000, // effectively "off" until the user sets a real cap
+  minCalories: 1800,
+  minProtein: 120,
+  maxSodium: 2300,
   weight: 0,
   bodyFat: 0,
 };
 
 export default function DietOptimizer() {
-  const [foods, setFoods] = useState([]);      // starts empty — no presets
+  const [foods, setFoods] = useState([]);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
 
   function addFood(food) {
-    setFoods(prev => (prev.some(f => f.id === food.id) ? prev : [...prev, food]));
+    setFoods(current => (current.some(existing => existing.id === food.id) ? current : [...current, food]));
   }
 
-  const solution = useMemo(() => {
-    if (foods.length === 0) return { feasible: false, result: 0 };
-    return buildAndSolve(foods, goals);
-  }, [foods, goals]);
+  const solution = useMemo(() => buildAndSolve(foods, goals), [foods, goals]);
 
-  const servingsData = foods
-    .map(f => ({ name: f.name, servings: solution[f.name] || 0 }))
-    .filter(d => d.servings > 0.01);
+  const servingsData = useMemo(() => foods
+    .map(food => ({ name: food.name, servings: solution.servingsByFoodId?.[food.id] || 0 }))
+    .filter(item => item.servings > 0.01), [foods, solution]);
 
-  // Pareto sweep: fix calories/sodium, vary protein floor, track cost
   const paretoData = useMemo(() => {
     if (foods.length === 0) return [];
     const points = [];
-    const top = Math.max(goals.minProtein * 1.5, 50);
-    for (let p = 0; p <= top; p += Math.max(top / 20, 1)) {
-      const s = buildAndSolve(foods, { ...goals, minProtein: p });
-      if (s.feasible) points.push({ protein: Math.round(p), cost: s.result });
+    const top = Math.max(Number(goals.minProtein || 0) * 1.5, 50);
+    const step = Math.max(top / 16, 1);
+    for (let protein = 0; protein <= top; protein += step) {
+      const candidate = buildAndSolve(foods, { ...goals, minProtein: protein });
+      if (candidate.feasible) {
+        points.push({ protein: Math.round(protein), cost: candidate.totalCost });
+      }
     }
     return points;
   }, [foods, goals]);
 
   return (
-    <div>
-      <h2>1. Build your ingredient list</h2>
-      <IngredientSearch onAdd={addFood} />
-      <IngredientList foods={foods} setFoods={setFoods} />
+    <main className="app-shell">
+      <section className="hero-panel">
+        <p className="section-kicker">Dark-mode linear-programming diet planner</p>
+        <h1>Food Optimizer</h1>
+        <p>
+          Build a food list, set nutrition constraints, and solve for the lowest-cost combination.
+          One optimizer serving equals <strong>100g</strong> unless you enter a custom item that represents your preferred unit.
+        </p>
+      </section>
 
-      <h2>2. Set your goals</h2>
-      <GoalsPanel goals={goals} setGoals={setGoals} />
+      <section className="card">
+        <div className="section-heading">
+          <span>1</span>
+          <div>
+            <h2>Build your ingredient list</h2>
+            <p className="muted">Search OpenFoodFacts or add nutrition labels manually. Prices are entered by you.</p>
+          </div>
+        </div>
+        <IngredientSearch onAdd={addFood} />
+        <ManualFoodForm onAdd={addFood} />
+        <IngredientList foods={foods} setFoods={setFoods} />
+      </section>
 
-      <h2>3. Result</h2>
-      {foods.length === 0 && <p>Add some ingredients above to see a solution.</p>}
-      {foods.length > 0 && !solution.feasible && (
-        <p>⚠️ Infeasible — no combination of your current ingredients satisfies these goals. Relax a constraint or add more ingredients.</p>
-      )}
-      {solution.feasible && (
-        <>
-          <h3>Total cost: ${solution.result?.toFixed(2)}</h3>
-          <BarChart width={500} height={300} data={servingsData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="servings" fill="#4f46e5" />
-          </BarChart>
-        </>
-      )}
+      <section className="card">
+        <div className="section-heading">
+          <span>2</span>
+          <div>
+            <h2>Set your goals</h2>
+            <p className="muted">The solver minimizes cost while meeting calorie, protein, and sodium constraints.</p>
+          </div>
+        </div>
+        <GoalsPanel goals={goals} setGoals={setGoals} />
+      </section>
 
-      {paretoData.length > 1 && (
-        <>
-          <h3>Cost vs. Protein Floor (Pareto)</h3>
-          <LineChart width={500} height={300} data={paretoData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="protein" label={{ value: 'Min protein (g)', position: 'insideBottom', offset: -5 }} />
-            <YAxis dataKey="cost" label={{ value: 'Cost ($)', angle: -90, position: 'insideLeft' }} />
-            <Tooltip />
-            <Line type="monotone" dataKey="cost" stroke="#16a34a" dot={false} />
-          </LineChart>
-        </>
-      )}
-    </div>
+      <section className="card">
+        <div className="section-heading">
+          <span>3</span>
+          <div>
+            <h2>Result</h2>
+            <p className="muted">Review suggested 100g units and the protein/cost tradeoff curve.</p>
+          </div>
+        </div>
+
+        {foods.length === 0 && <p className="empty-state">Add ingredients to see a solution.</p>}
+        {foods.length > 0 && !solution.feasible && (
+          <p className="alert">No feasible combination satisfies these goals. Relax a constraint, raise max servings, or add more foods.</p>
+        )}
+        {solution.feasible && (
+          <div className="result-grid">
+            <div className="stat-card">
+              <span>Total cost</span>
+              <strong>${solution.totalCost.toFixed(2)}</strong>
+            </div>
+            <div className="chart-card">
+              <h3>Servings selected</h3>
+              {servingsData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={servingsData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="servings" fill="#a855f7" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <p className="muted">All selected servings are effectively zero.</p>}
+            </div>
+          </div>
+        )}
+
+        {paretoData.length > 1 && (
+          <div className="chart-card">
+            <h3>Cost vs. protein floor</h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={paretoData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="protein" />
+                <YAxis dataKey="cost" />
+                <Tooltip />
+                <Line type="monotone" dataKey="cost" stroke="#22c55e" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </section>
+    </main>
   );
 }
