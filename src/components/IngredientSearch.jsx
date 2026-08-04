@@ -1,7 +1,8 @@
-import { useState } from 'react';
 import { searchFoods } from '../lib/foodApi';
+import { formatNutrientValue } from '../lib/nutrientMap';
+import { useState } from 'react';
 
-export default function IngredientSearch({ onAdd }) {
+export default function IngredientSearch({ apiKey, onAdd }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -10,16 +11,15 @@ export default function IngredientSearch({ onAdd }) {
   async function handleSearch(event) {
     event.preventDefault();
     if (!query.trim()) return;
+
     setLoading(true);
     setError(null);
     try {
-      const foods = await searchFoods(query);
+      const foods = await searchFoods(query, apiKey);
       setResults(foods);
-      if (foods.length === 0) {
-        setError('No matching products found. Try a broader term or add it manually.');
-      }
-    } catch (error) {
-      setError(`${error.message}. You can still add the food manually below.`);
+      if (foods.length === 0) setError('No USDA Foundation foods found. Try a simpler query.');
+    } catch (searchError) {
+      setError(`${searchError.message}. Paste your USDA key or add the food manually.`);
     } finally {
       setLoading(false);
     }
@@ -33,10 +33,10 @@ export default function IngredientSearch({ onAdd }) {
           id="ingredient-search"
           value={query}
           onChange={event => setQuery(event.target.value)}
-          placeholder="Search OpenFoodFacts: oats, chicken breast, lentils..."
+          placeholder="Search USDA Foundation foods: egg, oats, spinach..."
         />
         <button type="submit" disabled={loading || !query.trim()}>
-          {loading ? 'Searching...' : 'Search'}
+          {loading ? 'Searching...' : 'Search USDA'}
         </button>
       </form>
 
@@ -48,10 +48,12 @@ export default function IngredientSearch({ onAdd }) {
             <article className="result-card" key={food.id}>
               <div>
                 <strong>{food.name}</strong>
-                {food.brand && <span className="muted"> · {food.brand}</span>}
-                <p className="muted">{food.calories} kcal · {food.protein}g protein · {food.sodium}mg sodium / 100g</p>
+                <span className="pill">{food.dataType}</span>
+                <p className="muted">
+                  {formatNutrientValue('calories', food.nutrients.calories)} · {formatNutrientValue('protein', food.nutrients.protein)} protein · {formatNutrientValue('calcium', food.nutrients.calcium)} calcium / 100g
+                </p>
               </div>
-              <button onClick={() => onAdd(food)}>Add</button>
+              <button type="button" onClick={() => onAdd(food)}>Add</button>
             </article>
           ))}
         </div>

@@ -1,41 +1,41 @@
-const OFF_SEARCH = 'https://world.openfoodfacts.org/cgi/search.pl';
+import { mapUsdaNutrients } from './nutrientMap';
 
-export async function searchFoods(query) {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
+const USDA_SEARCH_URL = 'https://api.nal.usda.gov/fdc/v1/foods/search';
 
-  const url = `${OFF_SEARCH}?search_terms=${encodeURIComponent(trimmed)}&search_simple=1&action=process&json=1&page_size=15`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`OpenFoodFacts search failed with status ${res.status}`);
+export async function searchFoods(query, apiKey) {
+  const trimmedQuery = query.trim();
+  const trimmedKey = apiKey?.trim();
+
+  if (!trimmedQuery) return [];
+  if (!trimmedKey) {
+    throw new Error('USDA API key is required to search FoodData Central');
   }
 
-  const data = await res.json();
-  return (data.products || [])
-    .filter(product => product.nutriments && product.product_name)
-    .map(mapProduct);
+  const url = new URL(USDA_SEARCH_URL);
+  url.searchParams.set('query', trimmedQuery);
+  url.searchParams.set('dataType', 'Foundation');
+  url.searchParams.set('api_key', trimmedKey);
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`USDA FoodData Central search failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  return (data.foods || [])
+    .map(mapUsdaFood)
+    .filter(food => food.nutrients.calories > 0);
 }
 
-function mapProduct(product) {
+export function mapUsdaFood(food) {
   return {
-    id: product.code || stableFallbackId(product),
-    name: product.product_name,
-    brand: product.brands ?? '',
-    calories: round(product.nutriments['energy-kcal_100g']),
-    protein: round(product.nutriments.proteins_100g),
-    carbs: round(product.nutriments.carbohydrates_100g),
-    fat: round(product.nutriments.fat_100g),
-    sodium: round((product.nutriments.sodium_100g ?? 0) * 1000),
+    id: String(food.fdcId),
+    name: food.description || food.lowercaseDescription || 'Unnamed food',
+    brand: food.brandOwner || food.brandName || '',
+    dataType: food.dataType || 'USDA',
     unit: 'per 100g',
-    cost: '',
-    maxServing: 10,
+    cost: 0,
+    servingBounds: { min: 0, max: 10 },
+    nutrients: mapUsdaNutrients(food.foodNutrients || []),
   };
-}
-
-function stableFallbackId(product) {
-  return `${product.product_name}-${product.brands ?? ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-}
-
-function round(n) {
-  return n == null ? 0 : Math.round(n * 100) / 100;
 }

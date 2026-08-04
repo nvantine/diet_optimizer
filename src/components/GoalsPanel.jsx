@@ -1,36 +1,61 @@
-export default function GoalsPanel({ goals, setGoals }) {
-  const update = key => event => setGoals({ ...goals, [key]: event.target.value === '' ? '' : Number(event.target.value) });
+import { NUTRIENTS } from '../lib/nutrientMap';
+
+export default function GoalsPanel({ constraints, setConstraints }) {
+  function update(key, bound) {
+    return event => {
+      setConstraints(current => ({
+        ...current,
+        [key]: {
+          ...(current[key] || {}),
+          [bound]: event.target.value === '' ? '' : Number(event.target.value),
+        },
+      }));
+    };
+  }
 
   return (
     <fieldset className="goals-card">
-      <legend>Nutrition goals</legend>
-      <div className="grid form-grid">
-        <label>
-          Min calories
-          <input type="number" min="0" value={goals.minCalories} onChange={update('minCalories')} />
-        </label>
-
-        <label>
-          Min protein (g)
-          <input type="number" min="0" value={goals.minProtein} onChange={update('minProtein')} />
-        </label>
-
-        <label>
-          Max sodium (mg)
-          <input type="number" min="0" value={goals.maxSodium} onChange={update('maxSodium')} placeholder="No cap" />
-        </label>
-
-        <label>
-          Body weight (kg)
-          <input type="number" min="0" value={goals.weight} onChange={update('weight')} />
-        </label>
-
-        <label>
-          Body fat %
-          <input type="number" min="0" max="100" value={goals.bodyFat} onChange={update('bodyFat')} />
-        </label>
+      <legend>Nutrient constraints</legend>
+      <p className="muted">Set a minimum, maximum, or both. Blank means the bound is inactive.</p>
+      <div className="constraint-table">
+        <div className="constraint-row constraint-head">
+          <span>Nutrient</span>
+          <span>Minimum</span>
+          <span>Maximum</span>
+        </div>
+        {NUTRIENTS.map(nutrient => (
+          <div className="constraint-row" key={nutrient.key}>
+            <div>
+              <strong>{nutrient.label}</strong>
+              <small>{nutrient.unit}</small>
+            </div>
+            <label>
+              <span className="sr-only">{nutrient.label} minimum</span>
+              <input
+                aria-label={`${nutrient.label} minimum`}
+                type="number"
+                min="0"
+                step="0.1"
+                value={constraints[nutrient.key]?.min ?? ''}
+                onChange={update(nutrient.key, 'min')}
+                placeholder="min"
+              />
+            </label>
+            <label>
+              <span className="sr-only">{nutrient.label} maximum</span>
+              <input
+                aria-label={`${nutrient.label} maximum`}
+                type="number"
+                min="0"
+                step="0.1"
+                value={constraints[nutrient.key]?.max ?? ''}
+                onChange={update(nutrient.key, 'max')}
+                placeholder="max"
+              />
+            </label>
+          </div>
+        ))}
       </div>
-      <p className="muted">Body metrics are optional and currently used as planning context only, not hidden solver constraints.</p>
     </fieldset>
   );
 }

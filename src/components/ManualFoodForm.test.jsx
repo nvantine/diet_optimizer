@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import ManualFoodForm from './ManualFoodForm';
 
 describe('ManualFoodForm', () => {
-  it('adds a manual food with numeric optimizer fields', async () => {
+  it('adds a manual food with a nutrient vector, unused cost, and min/max serving bounds', async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
     render(<ManualFoodForm onAdd={onAdd} />);
@@ -14,16 +14,19 @@ describe('ManualFoodForm', () => {
     await user.type(screen.getByLabelText(/calories/i), '59');
     await user.clear(screen.getByLabelText(/protein/i));
     await user.type(screen.getByLabelText(/protein/i), '10');
-    await user.clear(screen.getByLabelText(/cost/i));
-    await user.type(screen.getByLabelText(/cost/i), '1.25');
+    await user.clear(screen.getByLabelText(/minimum 100g units/i));
+    await user.type(screen.getByLabelText(/minimum 100g units/i), '1');
+    await user.clear(screen.getByLabelText(/maximum 100g units/i));
+    await user.type(screen.getByLabelText(/maximum 100g units/i), '4');
     await user.click(screen.getByRole('button', { name: /add manual food/i }));
 
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({
       name: 'Greek yogurt',
-      calories: 59,
-      protein: 10,
-      cost: 1.25,
+      dataType: 'Manual',
       unit: 'per 100g',
+      cost: 0,
+      servingBounds: { min: 1, max: 4 },
+      nutrients: expect.objectContaining({ calories: 59, protein: 10 }),
     }));
   });
 });

@@ -190,6 +190,14 @@ h2 {
   padding: 0.85rem 1rem;
 }
 
+.api-key-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
 .search-row {
   display: grid;
   gap: 0.75rem;
@@ -227,6 +235,37 @@ h2 {
 
 .form-grid {
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.food-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.food-card {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  text-align: left;
+}
+
+.nutrient-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.nutrient-chips span,
+.pill {
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  padding: 0.25rem 0.55rem;
 }
 
 .table-wrap {
@@ -267,6 +306,30 @@ legend {
   margin-bottom: 1rem;
 }
 
+.constraint-table {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.constraint-row {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(160px, 1fr) minmax(120px, 0.65fr) minmax(120px, 0.65fr);
+}
+
+.constraint-head {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.constraint-row small {
+  color: var(--muted);
+  display: block;
+}
+
 .result-grid {
   display: grid;
   gap: 1rem;
@@ -299,7 +362,8 @@ legend {
 @media (max-width: 760px) {
   .search-row,
   .result-card,
-  .result-grid {
+  .result-grid,
+  .constraint-row {
     grid-template-columns: 1fr;
   }
 
