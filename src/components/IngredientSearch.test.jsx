@@ -4,8 +4,21 @@ import IngredientSearch from './IngredientSearch';
 import { searchFoods } from '../lib/foodApi';
 
 vi.mock('../lib/foodApi', () => ({
+  USDA_DATA_TYPES: {
+    foundationOnly: 'Foundation',
+    foundationAndSrLegacy: 'Foundation,SR Legacy',
+  },
   searchFoods: vi.fn(),
 }));
+
+function food(index, dataType = 'Foundation') {
+  return {
+    id: String(index),
+    name: `Food ${index}`,
+    dataType,
+    nutrients: { calories: 100 + index, protein: 10, calcium: 20 },
+  };
+}
 
 describe('IngredientSearch', () => {
   afterEach(() => {
@@ -13,10 +26,10 @@ describe('IngredientSearch', () => {
     vi.clearAllMocks();
   });
 
-  it('debounces live USDA searches as the user types', async () => {
+  it('debounces live USDA searches as the user types and defaults to Foundation only', async () => {
     vi.useFakeTimers();
     searchFoods.mockResolvedValue([
-      { id: '1', name: 'Eggs', dataType: 'SR Legacy', nutrients: { calories: 143, protein: 12, calcium: 56 } },
+      { id: '1', name: 'Eggs', dataType: 'Foundation', nutrients: { calories: 143, protein: 12, calcium: 56 } },
     ]);
 
     render(<IngredientSearch apiKey="key" onAdd={vi.fn()} />);
@@ -28,8 +41,55 @@ describe('IngredientSearch', () => {
     expect(searchFoods).not.toHaveBeenCalled();
 
     await act(async () => vi.advanceTimersByTimeAsync(1));
-    expect(searchFoods).toHaveBeenCalledWith('eggs', 'key');
+    expect(searchFoods).toHaveBeenCalledWith('eggs', 'key', 'Foundation');
     expect(screen.getByText('Eggs')).toBeInTheDocument();
+  });
+
+  it('lets the user include SR Legacy foods and explains that tradeoff', async () => {
+    vi.useFakeTimers();
+    searchFoods.mockResolvedValue([food(1, 'SR Legacy')]);
+
+    render(<IngredientSearch apiKey="key" onAdd={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText(/USDA data type/i), { target: { value: 'Foundation,SR Legacy' } });
+    fireEvent.change(screen.getByLabelText(/search ingredients/i), { target: { value: 'oats' } });
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+
+    expect(searchFoods).toHaveBeenCalledWith('oats', 'key', 'Foundation,SR Legacy');
+    expect(screen.getByText(/expands coverage/i)).toBeInTheDocument();
+    expect(screen.getByText(/older or less detailed/i)).toBeInTheDocument();
+  });
+
+  it('shows a small visual gap between result food names and their data type pill', async () => {
+    vi.useFakeTimers();
+    searchFoods.mockResolvedValue([food(1)]);
+
+    render(<IngredientSearch apiKey="key" onAdd={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/search ingredients/i), { target: { value: 'food' } });
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+
+    const heading = screen.getByText('Food 1').closest('.result-heading');
+    expect(heading).toBeInTheDocument();
+    expect(heading).toHaveClass('result-heading');
+  });
+
+  it('shows the first 12 results and reveals the remaining loaded results client-side', async () => {
+    vi.useFakeTimers();
+    searchFoods.mockResolvedValue(Array.from({ length: 16 }, (_, index) => food(index + 1)));
+
+    render(<IngredientSearch apiKey="key" onAdd={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/search ingredients/i), { target: { value: 'many foods' } });
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+
+    expect(screen.getByText('Food 1')).toBeInTheDocument();
+    expect(screen.getByText('Food 12')).toBeInTheDocument();
+    expect(screen.queryByText('Food 13')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /show more/i })).toHaveTextContent('Show more results');
+
+    fireEvent.click(screen.getByRole('button', { name: /show more/i }));
+
+    expect(screen.getByText('Food 13')).toBeInTheDocument();
+    expect(screen.getByText('Food 16')).toBeInTheDocument();
   });
 
   it('shows a clear broader-term message for empty search results', async () => {

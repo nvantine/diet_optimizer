@@ -30,7 +30,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -60,7 +61,8 @@ button.ghost {
   color: var(--muted);
 }
 
-input {
+input,
+select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 0.85rem;
@@ -69,7 +71,8 @@ input {
   padding: 0.72rem 0.8rem;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--accent-strong);
   outline: 2px solid rgba(168, 85, 247, 0.25);
 }
@@ -204,6 +207,11 @@ h2 {
   grid-template-columns: 1fr auto;
 }
 
+.data-type-filter {
+  margin-top: 0.75rem;
+  max-width: 24rem;
+}
+
 .results-list {
   display: grid;
   gap: 0.75rem;
@@ -220,6 +228,17 @@ h2 {
   gap: 1rem;
   padding: 1rem;
   text-align: left;
+}
+
+.result-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.show-more-results {
+  justify-self: start;
 }
 
 .manual-food-card {
@@ -309,6 +328,34 @@ legend {
 .constraint-table {
   display: grid;
   gap: 0.65rem;
+}
+
+.tier-selector {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 1rem;
+}
+
+.tier-option {
+  align-items: flex-start;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  cursor: pointer;
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.8rem;
+}
+
+.tier-option input {
+  margin-top: 0.25rem;
+  width: auto;
+}
+
+.tier-option small {
+  color: var(--muted);
+  display: block;
 }
 
 .constraint-row {

@@ -1,18 +1,22 @@
-import { searchFoods } from '../lib/foodApi';
+import { searchFoods, USDA_DATA_TYPES } from '../lib/foodApi';
 import { formatNutrientValue } from '../lib/nutrientMap';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const DEBOUNCE_MS = 300;
+const INITIAL_RESULT_COUNT = 12;
 
 export default function IngredientSearch({ apiKey, onAdd }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_RESULT_COUNT);
+  const [dataType, setDataType] = useState(USDA_DATA_TYPES.foundationOnly);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const searchCounter = useRef(0);
 
   useEffect(() => {
     const trimmed = query.trim();
+    setVisibleCount(INITIAL_RESULT_COUNT);
     if (!trimmed) {
       setResults([]);
       setMessage(null);
@@ -26,7 +30,7 @@ export default function IngredientSearch({ apiKey, onAdd }) {
       setLoading(true);
       setMessage(null);
 
-      searchFoods(trimmed, apiKey)
+      searchFoods(trimmed, apiKey, dataType)
         .then(foods => {
           if (searchCounter.current !== searchId) return;
           setResults(foods);
@@ -45,7 +49,10 @@ export default function IngredientSearch({ apiKey, onAdd }) {
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [apiKey, query]);
+  }, [apiKey, dataType, query]);
+
+  const visibleResults = useMemo(() => results.slice(0, visibleCount), [results, visibleCount]);
+  const hiddenResultCount = Math.max(results.length - visibleResults.length, 0);
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -59,23 +66,39 @@ export default function IngredientSearch({ apiKey, onAdd }) {
           id="ingredient-search"
           value={query}
           onChange={event => setQuery(event.target.value)}
-          placeholder="Search USDA Foundation + SR Legacy foods: eggs, oats, spinach..."
+          placeholder="Search USDA Foundation foods: eggs, oats, spinach..."
         />
         <button type="submit" disabled>
           {loading ? 'Searching...' : 'Live search'}
         </button>
       </form>
-      <p className="muted">Search runs about 300ms after you stop typing to avoid hammering USDA's API.</p>
+      <label className="data-type-filter" htmlFor="usda-data-type">
+        <span>USDA data type</span>
+        <select
+          id="usda-data-type"
+          value={dataType}
+          onChange={event => setDataType(event.target.value)}
+        >
+          <option value={USDA_DATA_TYPES.foundationOnly}>Foundation only</option>
+          <option value={USDA_DATA_TYPES.foundationAndSrLegacy}>Foundation + SR Legacy</option>
+        </select>
+      </label>
+      <p className="muted">
+        Search runs about 300ms after you stop typing to avoid hammering USDA's API.
+        Foundation only is the default. Switching to SR Legacy expands coverage, but data may be older or less detailed on some micronutrients.
+      </p>
 
       {message && <p className="alert">{message}</p>}
 
       {results.length > 0 && (
         <div className="results-list" aria-label="Search results">
-          {results.map(food => (
+          {visibleResults.map(food => (
             <article className="result-card" key={food.id}>
               <div>
-                <strong>{food.name}</strong>
-                <span className="pill">{food.dataType}</span>
+                <div className="result-heading">
+                  <strong>{food.name}</strong>
+                  <span className="pill">{food.dataType}</span>
+                </div>
                 <p className="muted">
                   {formatNutrientValue('calories', food.nutrients.calories)} · {formatNutrientValue('protein', food.nutrients.protein)} protein · {formatNutrientValue('calcium', food.nutrients.calcium)} calcium / 100g
                 </p>
@@ -83,6 +106,15 @@ export default function IngredientSearch({ apiKey, onAdd }) {
               <button type="button" onClick={() => onAdd(food)}>Add</button>
             </article>
           ))}
+          {hiddenResultCount > 0 && (
+            <button
+              className="ghost show-more-results"
+              type="button"
+              onClick={() => setVisibleCount(results.length)}
+            >
+              Show more results ({hiddenResultCount} more)
+            </button>
+          )}
         </div>
       )}
     </div>

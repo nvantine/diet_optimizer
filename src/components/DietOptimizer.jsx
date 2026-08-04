@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { defaultConstraints, formatNutrientValue } from '../lib/nutrientMap';
+import { defaultConstraints, formatNutrientValue, NUTRIENT_BY_KEY, NUTRIENT_TIERS, nutrientIsVisibleInTier } from '../lib/nutrientMap';
 import { buildAndSolve } from '../lib/solver';
 import ApiKeySettings from './ApiKeySettings';
 import GoalsPanel from './GoalsPanel';
@@ -11,13 +11,21 @@ import ManualFoodForm from './ManualFoodForm';
 export default function DietOptimizer() {
   const [apiKey, setApiKey] = useState('');
   const [foods, setFoods] = useState([]);
-  const [constraints, setConstraints] = useState(defaultConstraints());
+  const [constraintTier, setConstraintTier] = useState(NUTRIENT_TIERS.simple);
+  const [constraints, setConstraints] = useState(defaultConstraints(NUTRIENT_TIERS.simple));
 
   function addFood(food) {
     setFoods(current => (current.some(existing => existing.id === food.id) ? current : [...current, food]));
   }
 
-  const solution = useMemo(() => buildAndSolve(foods, constraints), [foods, constraints]);
+  const activeConstraints = useMemo(() => Object.fromEntries(
+    Object.entries(constraints).filter(([key]) => {
+      const nutrient = NUTRIENT_BY_KEY[key];
+      return nutrient && nutrientIsVisibleInTier(nutrient, constraintTier);
+    }),
+  ), [constraintTier, constraints]);
+
+  const solution = useMemo(() => buildAndSolve(foods, activeConstraints), [foods, activeConstraints]);
 
   const selectedData = useMemo(() => solution.selectedFoods.map(food => ({
     name: food.name,
@@ -59,7 +67,12 @@ export default function DietOptimizer() {
             <p className="muted">Each tracked nutrient can have a lower bound, an upper bound, or both. Blank means inactive.</p>
           </div>
         </div>
-        <GoalsPanel constraints={constraints} setConstraints={setConstraints} />
+        <GoalsPanel
+          constraints={constraints}
+          selectedTier={constraintTier}
+          setConstraints={setConstraints}
+          setSelectedTier={setConstraintTier}
+        />
       </section>
 
       <section className="card">

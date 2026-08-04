@@ -1,10 +1,15 @@
 import { mapUsdaNutrients } from './nutrientMap';
 
 const USDA_SEARCH_URL = 'https://api.nal.usda.gov/fdc/v1/foods/search';
+export const USDA_DATA_TYPES = {
+  foundationOnly: 'Foundation',
+  foundationAndSrLegacy: 'Foundation,SR Legacy',
+};
 
-export async function searchFoods(query, apiKey) {
+export async function searchFoods(query, apiKey, dataType = USDA_DATA_TYPES.foundationOnly) {
   const trimmedQuery = query.trim();
   const trimmedKey = apiKey?.trim();
+  const selectedDataType = dataType || USDA_DATA_TYPES.foundationOnly;
 
   if (!trimmedQuery) return [];
   if (!trimmedKey) {
@@ -13,7 +18,7 @@ export async function searchFoods(query, apiKey) {
 
   const url = new URL(USDA_SEARCH_URL);
   url.searchParams.set('query', trimmedQuery);
-  url.searchParams.set('dataType', 'Foundation,SR Legacy');
+  url.searchParams.set('dataType', selectedDataType);
   url.searchParams.set('api_key', trimmedKey);
 
   const response = await fetch(url.toString());
@@ -36,6 +41,10 @@ export function mapUsdaFood(food) {
     unit: 'per 100g',
     cost: 0,
     servingBounds: { min: 0, max: 10 },
+    // TODO: Some foods are naturally discrete (for example, one egg), but the
+    // optimizer currently treats all foods as continuous 100g units. Revisit
+    // later with an optional MILP/integer-serving mode if discrete serving
+    // recommendations become important.
     nutrients: mapUsdaNutrients(food.foodNutrients || []),
   };
 }

@@ -52,7 +52,7 @@ describe('USDA FoodData Central API', () => {
     }));
   });
 
-  it('uses the required USDA GET search endpoint with Foundation and SR Legacy data types', async () => {
+  it('uses the required USDA GET search endpoint with Foundation data by default', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       json: async () => ({ foods: [] }),
@@ -66,8 +66,21 @@ describe('USDA FoodData Central API', () => {
     const parsed = new URL(url);
     expect(`${parsed.origin}${parsed.pathname}`).toBe('https://api.nal.usda.gov/fdc/v1/foods/search');
     expect(parsed.searchParams.get('query')).toBe('eggs');
-    expect(parsed.searchParams.get('dataType')).toBe('Foundation,SR Legacy');
+    expect(parsed.searchParams.get('dataType')).toBe('Foundation');
     expect(parsed.searchParams.get('api_key')).toBe('abc123');
+  });
+
+  it('can opt into Foundation plus SR Legacy for broader coverage', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ foods: [] }),
+    })));
+
+    await searchFoods('oats', 'abc123', 'Foundation,SR Legacy');
+
+    const [url] = fetch.mock.calls[0];
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get('dataType')).toBe('Foundation,SR Legacy');
   });
 
   it('requires the USDA API key before searching', async () => {
