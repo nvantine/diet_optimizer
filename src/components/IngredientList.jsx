@@ -36,7 +36,7 @@ export default function IngredientList({ foods, setFoods }) {
         <article className="food-card" key={food.id}>
           <div>
             <h3>{food.name}</h3>
-            <p className="muted">{food.dataType} · {food.unit}</p>
+            <p className="muted">{food.dataType} · {food.unit}. Nutrient values shown are per 100g of this food, not per serving or daily totals.</p>
           </div>
           <div className="nutrient-chips">
             {SUMMARY_KEYS.map(key => (

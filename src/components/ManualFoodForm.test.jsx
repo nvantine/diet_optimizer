@@ -10,8 +10,8 @@ describe('ManualFoodForm', () => {
     render(<ManualFoodForm onAdd={onAdd} />);
 
     await user.type(screen.getByLabelText(/food name/i), 'Greek yogurt');
-    await user.clear(screen.getByLabelText(/calories/i));
-    await user.type(screen.getByLabelText(/calories/i), '59');
+    await user.clear(screen.getByLabelText(/energy/i));
+    await user.type(screen.getByLabelText(/energy/i), '59');
     await user.clear(screen.getByLabelText(/protein/i));
     await user.type(screen.getByLabelText(/protein/i), '10');
     await user.clear(screen.getByLabelText(/minimum 100g units/i));

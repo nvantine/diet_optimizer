@@ -16,12 +16,12 @@ export default function GoalsPanel({ constraints, setConstraints }) {
   return (
     <fieldset className="goals-card">
       <legend>Nutrient constraints</legend>
-      <p className="muted">Set a minimum, maximum, or both. Blank means the bound is inactive.</p>
+      <p className="muted">These optimizer constraints are daily totals across all selected foods. Blank means the bound is inactive.</p>
       <div className="constraint-table">
         <div className="constraint-row constraint-head">
           <span>Nutrient</span>
-          <span>Minimum</span>
-          <span>Maximum</span>
+          <span>Daily minimum</span>
+          <span>Daily maximum</span>
         </div>
         {NUTRIENTS.map(nutrient => (
           <div className="constraint-row" key={nutrient.key}>
@@ -38,7 +38,7 @@ export default function GoalsPanel({ constraints, setConstraints }) {
                 step="0.1"
                 value={constraints[nutrient.key]?.min ?? ''}
                 onChange={update(nutrient.key, 'min')}
-                placeholder="min"
+                placeholder="daily min"
               />
             </label>
             <label>
@@ -50,7 +50,7 @@ export default function GoalsPanel({ constraints, setConstraints }) {
                 step="0.1"
                 value={constraints[nutrient.key]?.max ?? ''}
                 onChange={update(nutrient.key, 'max')}
-                placeholder="max"
+                placeholder="daily max"
               />
             </label>
           </div>

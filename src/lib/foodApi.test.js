@@ -6,66 +6,67 @@ describe('USDA FoodData Central API', () => {
     vi.restoreAllMocks();
   });
 
-  it('maps USDA Foundation foods into per-100g nutrient vectors and keeps cost unused', () => {
+  it('maps broad observed USDA nutrient ids into per-100g nutrient vectors and keeps missing data distinct from zero', () => {
     const food = mapUsdaFood({
-      fdcId: 747997,
-      description: 'Egg, whole, raw, fresh',
-      dataType: 'Foundation',
+      fdcId: 171515,
+      description: 'Chicken breast tenders, breaded, uncooked',
+      dataType: 'SR Legacy',
       foodNutrients: [
-        { nutrientId: 1008, nutrientName: 'Energy', unitName: 'KCAL', value: 143 },
-        { nutrientId: 1003, nutrientName: 'Protein', unitName: 'G', value: 12.6 },
-        { nutrientId: 1004, nutrientName: 'Total lipid (fat)', unitName: 'G', value: 9.5 },
-        { nutrientId: 1005, nutrientName: 'Carbohydrate, by difference', unitName: 'G', value: 0.72 },
-        { nutrientId: 1079, nutrientName: 'Fiber, total dietary', unitName: 'G', value: 0 },
-        { nutrientId: 2000, nutrientName: 'Sugars, Total', unitName: 'G', value: 0.37 },
-        { nutrientId: 1093, nutrientName: 'Sodium, Na', unitName: 'MG', value: 142 },
-        { nutrientId: 1087, nutrientName: 'Calcium, Ca', unitName: 'MG', value: 56 },
-        { nutrientId: 1089, nutrientName: 'Iron, Fe', unitName: 'MG', value: 1.75 },
-        { nutrientId: 1092, nutrientName: 'Potassium, K', unitName: 'MG', value: 138 },
-        { nutrientId: 1114, nutrientName: 'Vitamin D (D2 + D3)', unitName: 'UG', value: 2 },
-        { nutrientId: 1162, nutrientName: 'Vitamin C, total ascorbic acid', unitName: 'MG', value: 0 },
+        { nutrient: { id: 1008, number: '208', name: 'Energy', unitName: 'kcal' }, amount: 263 },
+        { nutrient: { id: 1003, number: '203', name: 'Protein', unitName: 'g' }, amount: 14.73 },
+        { nutrient: { id: 1258, number: '606', name: 'Fatty acids, total saturated', unitName: 'g' }, amount: 3.26 },
+        { nutrient: { id: 1257, number: '605', name: 'Fatty acids, total trans', unitName: 'g' }, amount: 0 },
+        { nutrient: { id: 1253, number: '601', name: 'Cholesterol', unitName: 'mg' }, amount: 41 },
+        { nutrient: { id: 1165, number: '404', name: 'Thiamin', unitName: 'mg' }, amount: 0.211 },
+        { nutrient: { id: 1109, number: '323', name: 'Vitamin E (alpha-tocopherol)', unitName: 'mg' }, amount: 0.08 },
+        { nutrient: { id: 1091, number: '305', name: 'Phosphorus, P', unitName: 'mg' }, amount: 211 },
+        { nutrient: { id: 1213, number: '504', name: 'Leucine', unitName: 'g' }, amount: 1.019 },
+        { nutrient: { id: 1268, number: '617', name: 'MUFA 18:1', unitName: 'g' }, amount: 5.933 },
+        { nutrient: { id: 1051, number: '255', name: 'Water', unitName: 'g' }, amount: 52.74 },
+        { nutrient: { id: 1007, number: '207', name: 'Ash', unitName: 'g' }, amount: 1.77 },
       ],
     });
 
     expect(food).toEqual(expect.objectContaining({
-      id: '747997',
-      name: 'Egg, whole, raw, fresh',
-      dataType: 'Foundation',
+      id: '171515',
+      name: 'Chicken breast tenders, breaded, uncooked',
+      dataType: 'SR Legacy',
       unit: 'per 100g',
       cost: 0,
       servingBounds: { min: 0, max: 10 },
       nutrients: expect.objectContaining({
-        calories: 143,
-        protein: 12.6,
-        fat: 9.5,
-        carbs: 0.72,
-        fiber: 0,
-        sugars: 0.37,
-        sodium: 142,
-        calcium: 56,
-        iron: 1.75,
-        potassium: 138,
-        vitaminD: 2,
-        vitaminC: 0,
+        calories: 263,
+        protein: 14.73,
+        saturatedFat: 3.26,
+        transFat: 0,
+        cholesterol: 41,
+        vitaminB1: 0.211,
+        vitaminE: 0.08,
+        phosphorus: 211,
+        leucine: 1.019,
+        mufa18_1: 5.933,
+        water: 52.74,
+        ash: 1.77,
+        addedSugars: null,
       }),
     }));
   });
 
-  it('uses the required USDA GET search endpoint with Foundation data only', async () => {
+  it('uses the required USDA GET search endpoint with Foundation and SR Legacy data types', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       json: async () => ({ foods: [] }),
     })));
 
-    await searchFoods('egg', 'abc123');
+    await searchFoods('eggs', 'abc123');
 
     expect(fetch).toHaveBeenCalledTimes(1);
     const [url, options] = fetch.mock.calls[0];
     expect(options).toBeUndefined();
     const parsed = new URL(url);
     expect(`${parsed.origin}${parsed.pathname}`).toBe('https://api.nal.usda.gov/fdc/v1/foods/search');
-    expect(parsed.searchParams.get('query')).toBe('egg');
-    expect(parsed.searchParams.get('dataType')).toBe('Foundation');
+    expect(parsed.searchParams.get('query')).toBe('eggs');
+    expect(parsed.searchParams.get('dataType')).toBe('Foundation,SR Legacy');
     expect(parsed.searchParams.get('api_key')).toBe('abc123');
   });
 

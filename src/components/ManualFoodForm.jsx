@@ -62,7 +62,7 @@ export default function ManualFoodForm({ onAdd }) {
     <form className="manual-food-card" onSubmit={submit}>
       <div className="section-kicker">Manual fallback</div>
       <h3>Add food manually</h3>
-      <p className="muted">Use this when USDA search is unavailable or you have a label you trust.</p>
+      <p className="muted">Use this when USDA search is unavailable or you have a label you trust. Nutrient values below are per 100g of this specific food, matching USDA's basis — not per serving and not daily totals.</p>
       <div className="grid form-grid">
         <label>
           Food name
@@ -72,7 +72,7 @@ export default function ManualFoodForm({ onAdd }) {
           const nutrient = NUTRIENTS.find(item => item.key === key);
           return (
             <label key={key}>
-              {nutrient.label} ({nutrient.unit})
+              {nutrient.label} per 100g ({nutrient.unit})
               <input type="number" min="0" step="0.1" value={food.nutrients[key]} onChange={updateNutrient(key)} />
             </label>
           );

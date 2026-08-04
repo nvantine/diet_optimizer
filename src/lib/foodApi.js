@@ -13,7 +13,7 @@ export async function searchFoods(query, apiKey) {
 
   const url = new URL(USDA_SEARCH_URL);
   url.searchParams.set('query', trimmedQuery);
-  url.searchParams.set('dataType', 'Foundation');
+  url.searchParams.set('dataType', 'Foundation,SR Legacy');
   url.searchParams.set('api_key', trimmedKey);
 
   const response = await fetch(url.toString());
