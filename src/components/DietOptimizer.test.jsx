@@ -1,8 +1,17 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DietOptimizer from './DietOptimizer';
+import IngredientSearch from './IngredientSearch';
+
+vi.mock('./IngredientSearch', () => ({
+  default: vi.fn(() => null),
+}));
 
 describe('DietOptimizer', () => {
+  beforeEach(() => {
+    IngredientSearch.mockClear();
+  });
+
   it('uses USDA search and no longer shows body-weight or body-fat fields', () => {
     render(<DietOptimizer />);
 
@@ -20,5 +29,14 @@ describe('DietOptimizer', () => {
     expect(screen.getAllByLabelText(/maximum/i).length).toBeGreaterThan(2);
     expect(screen.queryByText(/shadow prices/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Pareto/i)).not.toBeInTheDocument();
+  });
+
+  it('passes selected food ids into IngredientSearch for already-added awareness', () => {
+    render(<DietOptimizer />);
+
+    expect(IngredientSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ existingIds: expect.any(Set) }),
+      undefined,
+    );
   });
 });

@@ -92,6 +92,36 @@ describe('IngredientSearch', () => {
     expect(screen.getByText('Food 16')).toBeInTheDocument();
   });
 
+  it('shows already-added status for search results whose ids are in the food list', async () => {
+    vi.useFakeTimers();
+    searchFoods.mockResolvedValue([food(1), food(2)]);
+
+    render(<IngredientSearch apiKey="key" existingIds={new Set(['1'])} onAdd={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/search ingredients/i), { target: { value: 'food' } });
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+
+    expect(screen.getByText('Already added')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^add$/i })).toHaveLength(1);
+  });
+
+  it('shows a temporary confirmation toast after adding a search result', async () => {
+    vi.useFakeTimers();
+    const onAdd = vi.fn();
+    searchFoods.mockResolvedValue([food(1)]);
+
+    render(<IngredientSearch apiKey="key" existingIds={new Set()} onAdd={onAdd} />);
+    fireEvent.change(screen.getByLabelText(/search ingredients/i), { target: { value: 'food' } });
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+
+    fireEvent.click(screen.getByRole('button', { name: /^add$/i }));
+
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ id: '1', name: 'Food 1' }));
+    expect(screen.getByText('Added Food 1 to your list')).toBeInTheDocument();
+
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    expect(screen.queryByText('Added Food 1 to your list')).not.toBeInTheDocument();
+  });
+
   it('shows a clear broader-term message for empty search results', async () => {
     vi.useFakeTimers();
     searchFoods.mockResolvedValue([]);

@@ -54,7 +54,7 @@ export default function DietOptimizer() {
           </div>
         </div>
         <ApiKeySettings apiKey={apiKey} setApiKey={setApiKey} />
-        <IngredientSearch apiKey={apiKey} onAdd={addFood} />
+        <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
         <ManualFoodForm onAdd={addFood} />
         <IngredientList foods={foods} setFoods={setFoods} />
       </section>

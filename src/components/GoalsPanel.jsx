@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { NUTRIENTS, NUTRIENT_TIERS, nutrientIsVisibleInTier } from '../lib/nutrientMap';
+import { buildRdaPresetConstraints } from '../lib/rdaPresets';
 
 const TIER_OPTIONS = [
   {
@@ -21,6 +22,7 @@ const TIER_OPTIONS = [
 
 export default function GoalsPanel({ constraints, selectedTier, setConstraints, setSelectedTier }) {
   const [internalTier, setInternalTier] = useState(NUTRIENT_TIERS.simple);
+  const [preset, setPreset] = useState({ sex: 'female', weightKg: '', heightCm: '', ageYears: '' });
   const activeTier = selectedTier ?? internalTier;
   const visibleNutrients = useMemo(
     () => NUTRIENTS.filter(nutrient => nutrientIsVisibleInTier(nutrient, activeTier)),
@@ -39,6 +41,10 @@ export default function GoalsPanel({ constraints, selectedTier, setConstraints, 
     };
   }
 
+  function updatePreset(field) {
+    return event => setPreset(current => ({ ...current, [field]: event.target.value }));
+  }
+
   function chooseTier(tier) {
     if (setSelectedTier) {
       setSelectedTier(tier);
@@ -47,10 +53,46 @@ export default function GoalsPanel({ constraints, selectedTier, setConstraints, 
     }
   }
 
+  function applyPreset() {
+    const presetConstraints = buildRdaPresetConstraints({ ...preset, tier: activeTier });
+    setConstraints(current => ({
+      ...current,
+      ...presetConstraints,
+    }));
+  }
+
   return (
     <fieldset className="goals-card">
       <legend>Nutrient constraints</legend>
       <p className="muted">These optimizer constraints are daily totals across all selected foods. Blank means the bound is inactive.</p>
+      <div className="preset-card">
+        <h3>Approximate biometric preset</h3>
+        <p className="muted">
+          Estimates for exploring the linear program, not medical guidance. Rough estimate for testing the optimizer, not a real dietary calculation. Assumes light activity.
+        </p>
+        <div className="grid preset-grid">
+          <label htmlFor="preset-sex">
+            Sex
+            <select id="preset-sex" value={preset.sex} onChange={updatePreset('sex')}>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </label>
+          <label htmlFor="preset-weight">
+            Weight (kg)
+            <input id="preset-weight" type="number" min="0" step="0.1" value={preset.weightKg} onChange={updatePreset('weightKg')} placeholder="70" />
+          </label>
+          <label htmlFor="preset-height">
+            Height (cm)
+            <input id="preset-height" type="number" min="0" step="0.1" value={preset.heightCm} onChange={updatePreset('heightCm')} placeholder="170" />
+          </label>
+          <label htmlFor="preset-age">
+            Age (years)
+            <input id="preset-age" type="number" min="0" step="1" value={preset.ageYears} onChange={updatePreset('ageYears')} placeholder="25" />
+          </label>
+        </div>
+        <button className="preset-button" type="button" onClick={applyPreset}>Apply preset</button>
+      </div>
       <div className="tier-selector" role="radiogroup" aria-label="Nutrient constraint tier">
         {TIER_OPTIONS.map(option => (
           <label key={option.value} className="tier-option">

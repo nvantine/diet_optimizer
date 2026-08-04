@@ -90,7 +90,7 @@ export default function ManualFoodForm({ onAdd }) {
           <input type="number" min="0" step="0.25" value={food.servingBounds.max} onChange={updateServingBound('max')} />
         </label>
       </div>
-      <button type="submit">Add manual food</button>
+      <button className="manual-submit-button" type="submit">Add manual food</button>
     </form>
   );
 }

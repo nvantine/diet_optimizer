@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 import ManualFoodForm from './ManualFoodForm';
 
 describe('ManualFoodForm', () => {
+  it('adds spacing above the manual submit button', () => {
+    render(<ManualFoodForm onAdd={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: /add manual food/i })).toHaveClass('manual-submit-button');
+  });
+
   it('adds a manual food with a nutrient vector, unused cost, and min/max serving bounds', async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();

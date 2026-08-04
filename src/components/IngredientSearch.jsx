@@ -4,15 +4,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 const DEBOUNCE_MS = 300;
 const INITIAL_RESULT_COUNT = 12;
+const TOAST_MS = 2000;
 
-export default function IngredientSearch({ apiKey, onAdd }) {
+export default function IngredientSearch({ apiKey, existingIds = new Set(), onAdd }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [visibleCount, setVisibleCount] = useState(INITIAL_RESULT_COUNT);
   const [dataType, setDataType] = useState(USDA_DATA_TYPES.foundationOnly);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
+  const [toast, setToast] = useState(null);
   const searchCounter = useRef(0);
+  const toastTimer = useRef(null);
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -58,8 +65,16 @@ export default function IngredientSearch({ apiKey, onAdd }) {
     event.preventDefault();
   }
 
+  function addFood(food) {
+    onAdd(food);
+    setToast(`Added ${food.name} to your list`);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), TOAST_MS);
+  }
+
   return (
     <div className="search-card">
+      {toast && <div className="toast" role="status">{toast}</div>}
       <form className="search-row" onSubmit={handleSubmit}>
         <label className="sr-only" htmlFor="ingredient-search">Search ingredients</label>
         <input
@@ -92,20 +107,25 @@ export default function IngredientSearch({ apiKey, onAdd }) {
 
       {results.length > 0 && (
         <div className="results-list" aria-label="Search results">
-          {visibleResults.map(food => (
-            <article className="result-card" key={food.id}>
-              <div>
-                <div className="result-heading">
-                  <strong>{food.name}</strong>
-                  <span className="pill">{food.dataType}</span>
+          {visibleResults.map(food => {
+            const alreadyAdded = existingIds.has(food.id);
+            return (
+              <article className="result-card" key={food.id}>
+                <div>
+                  <div className="result-heading">
+                    <strong>{food.name}</strong>
+                    <span className="pill">{food.dataType}</span>
+                  </div>
+                  <p className="muted">
+                    {formatNutrientValue('calories', food.nutrients.calories)} · {formatNutrientValue('protein', food.nutrients.protein)} protein · {formatNutrientValue('calcium', food.nutrients.calcium)} calcium / 100g
+                  </p>
                 </div>
-                <p className="muted">
-                  {formatNutrientValue('calories', food.nutrients.calories)} · {formatNutrientValue('protein', food.nutrients.protein)} protein · {formatNutrientValue('calcium', food.nutrients.calcium)} calcium / 100g
-                </p>
-              </div>
-              <button type="button" onClick={() => onAdd(food)}>Add</button>
-            </article>
-          ))}
+                {alreadyAdded
+                  ? <span className="pill already-added">Already added</span>
+                  : <button type="button" onClick={() => addFood(food)}>Add</button>}
+              </article>
+            );
+          })}
           {hiddenResultCount > 0 && (
             <button
               className="ghost show-more-results"
