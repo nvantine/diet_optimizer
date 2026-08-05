@@ -1,3 +1,4 @@
+import { estimateCostPer100g } from './costEstimates';
 import { mapUsdaNutrients } from './nutrientMap';
 
 const USDA_SEARCH_URL = 'https://api.nal.usda.gov/fdc/v1/foods/search';
@@ -33,13 +34,14 @@ export async function searchFoods(query, apiKey, dataType = USDA_DATA_TYPES.foun
 }
 
 export function mapUsdaFood(food) {
+  const name = food.description || food.lowercaseDescription || 'Unnamed food';
   return {
     id: String(food.fdcId),
-    name: food.description || food.lowercaseDescription || 'Unnamed food',
+    name,
     brand: food.brandOwner || food.brandName || '',
     dataType: food.dataType || 'USDA',
     unit: 'per 100g',
-    cost: 0,
+    cost: estimateCostPer100g(name, food.foodCategory || food.foodCategoryDescription),
     servingBounds: { min: 0, max: 10 },
     // TODO: Some foods are naturally discrete (for example, one egg), but the
     // optimizer currently treats all foods as continuous 100g units. Revisit

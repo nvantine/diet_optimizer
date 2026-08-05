@@ -5,29 +5,14 @@ import GoalsPanel from './GoalsPanel';
 import { NUTRIENT_TIERS } from '../lib/nutrientMap';
 
 describe('GoalsPanel nutrient tiers', () => {
-  it('shows only simple macro constraints and meal share controls by default', () => {
-    render(<GoalsPanel constraints={{}} mealShareLimits={{}} setConstraints={vi.fn()} setMealShareLimits={vi.fn()} />);
+  it('shows only simple macro constraints by default', () => {
+    render(<GoalsPanel constraints={{}} setConstraints={vi.fn()} />);
 
     expect(screen.getByRole('radio', { name: /simple/i })).toBeChecked();
     expect(screen.getByLabelText(/Protein minimum/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Sodium maximum/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Vitamin C minimum/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Vitamin C meal share cap/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Leucine minimum/i)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/Protein meal share cap/i)).toHaveValue(50);
-  });
-
-  it('updates per-nutrient meal share caps for visible nutrients only', () => {
-    const setMealShareLimits = vi.fn(updater => {
-      const next = typeof updater === 'function' ? updater({ protein: 0.5 }) : updater;
-      expect(next.protein).toBe(0.42);
-    });
-
-    render(<GoalsPanel constraints={{}} mealShareLimits={{ protein: 0.5 }} setConstraints={vi.fn()} setMealShareLimits={setMealShareLimits} />);
-
-    fireEvent.change(screen.getByLabelText(/Protein meal share cap/i), { target: { value: '42' } });
-
-    expect(setMealShareLimits).toHaveBeenCalled();
   });
 
   it('shows the DRI-style medium set without amino acid and fatty acid detail', () => {

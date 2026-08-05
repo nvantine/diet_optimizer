@@ -45,7 +45,7 @@ export default function IngredientList({ foods, setFoods }) {
           </div>
           <div className="grid form-grid">
             <label>
-              Cost ($ per 100g, unused)
+              Cost ($ per 100g)
               <input
                 aria-label={`Cost for ${food.name}`}
                 type="number"

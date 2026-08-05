@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { estimateCostPer100g } from '../lib/costEstimates';
 import { NUTRIENTS } from '../lib/nutrientMap';
 
 function emptyFood() {
@@ -16,7 +17,8 @@ export default function ManualFoodForm({ onAdd }) {
   const [food, setFood] = useState(emptyFood);
 
   function updateName(event) {
-    setFood(current => ({ ...current, name: event.target.value }));
+    const name = event.target.value;
+    setFood(current => ({ ...current, name, cost: estimateCostPer100g(name) }));
   }
 
   function updateCost(event) {
@@ -78,7 +80,7 @@ export default function ManualFoodForm({ onAdd }) {
           );
         })}
         <label>
-          Cost ($ per 100g, unused)
+          Cost ($ per 100g, editable estimate)
           <input type="number" min="0" step="0.01" value={food.cost} onChange={updateCost} />
         </label>
         <label>

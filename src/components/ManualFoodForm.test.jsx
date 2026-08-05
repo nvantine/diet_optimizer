@@ -10,7 +10,7 @@ describe('ManualFoodForm', () => {
     expect(screen.getByRole('button', { name: /add manual food/i })).toHaveClass('manual-submit-button');
   });
 
-  it('adds a manual food with a nutrient vector, unused cost, and min/max serving bounds', async () => {
+  it('adds a manual food with a nutrient vector, editable estimated cost, and min/max serving bounds', async () => {
     const user = userEvent.setup();
     const onAdd = vi.fn();
     render(<ManualFoodForm onAdd={onAdd} />);
@@ -30,7 +30,7 @@ describe('ManualFoodForm', () => {
       name: 'Greek yogurt',
       dataType: 'Manual',
       unit: 'per 100g',
-      cost: 0,
+      cost: 0.4,
       servingBounds: { min: 1, max: 4 },
       nutrients: expect.objectContaining({ calories: 59, protein: 10 }),
     }));
