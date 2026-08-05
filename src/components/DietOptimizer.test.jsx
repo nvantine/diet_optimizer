@@ -3,11 +3,20 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DietOptimizer from './DietOptimizer';
 import IngredientSearch from './IngredientSearch';
+import { listRandomFoundationFoods } from '../lib/foodApi';
+
+vi.mock('../lib/foodApi', async importOriginal => {
+  const actual = await importOriginal();
+  return { ...actual, listRandomFoundationFoods: vi.fn() };
+});
 
 vi.mock('./IngredientSearch', () => ({ default: vi.fn(() => null) }));
 
 describe('DietOptimizer', () => {
-  beforeEach(() => { IngredientSearch.mockClear(); });
+  beforeEach(() => {
+    IngredientSearch.mockClear();
+    listRandomFoundationFoods.mockReset();
+  });
 
   it('uses USDA search and no longer shows body-weight or body-fat fields', () => {
     render(<DietOptimizer />);
@@ -56,6 +65,42 @@ describe('DietOptimizer', () => {
     expect(saved).toHaveLength(22);
     expect(saved.find(food => food.name === 'Chicken breast').cost).toBe(0.92);
     expect(saved.find(food => food.name === 'Olive oil').servingBounds.max).toBe(0.6);
+  });
+
+  it('generates random Foundation foods with requested count and serving bounds after destructive confirmation', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    listRandomFoundationFoods.mockResolvedValue([
+      { id: 'random-1', name: 'Random lentils', dataType: 'Foundation', unit: 'per 100g', cost: 0.4, servingBounds: { min: 0.5, max: 4 }, nutrients: { calories: 120, protein: 9, fat: 1, carbs: 20, fiber: 8, sodium: 3 } },
+      { id: 'random-2', name: 'Random oats', dataType: 'Foundation', unit: 'per 100g', cost: 0.3, servingBounds: { min: 0.5, max: 4 }, nutrients: { calories: 380, protein: 13, fat: 7, carbs: 67, fiber: 10, sodium: 2 } },
+    ]);
+
+    render(<DietOptimizer />);
+    await user.type(screen.getByLabelText(/USDA API key/i), 'abc123');
+    await user.clear(screen.getByLabelText(/How many foods/i));
+    await user.type(screen.getByLabelText(/How many foods/i), '2');
+    await user.clear(screen.getByLabelText(/Default min serving/i));
+    await user.type(screen.getByLabelText(/Default min serving/i), '0.5');
+    await user.clear(screen.getByLabelText(/Default max serving/i));
+    await user.type(screen.getByLabelText(/Default max serving/i), '4');
+    await user.click(screen.getByRole('button', { name: /Generate random foods/i }));
+
+    await waitFor(() => expect(screen.getByText(/Random lentils/i)).toBeInTheDocument());
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/Replace your current food list/i));
+    expect(listRandomFoundationFoods).toHaveBeenCalledWith(2, 'abc123', { min: 0.5, max: 4 });
+    expect(JSON.parse(localStorage.getItem('diet-optimizer-foods'))).toHaveLength(2);
+  });
+
+  it('does not replace existing foods when random Foundation generation is cancelled', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    localStorage.setItem('diet-optimizer-foods', JSON.stringify([{ id: 'saved-food', name: 'Saved lentils', dataType: 'Manual', unit: 'per 100g', cost: 0.25, servingBounds: { min: 0, max: 1 }, nutrients: { calories: 120, protein: 9 } }]));
+
+    render(<DietOptimizer />);
+    await user.click(screen.getByRole('button', { name: /Generate random foods/i }));
+
+    expect(listRandomFoundationFoods).not.toHaveBeenCalled();
+    expect(screen.getByText(/Saved lentils/i)).toBeInTheDocument();
   });
 
   it('loads saved foods from localStorage instead of the preset on page load', () => {

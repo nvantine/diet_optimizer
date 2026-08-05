@@ -124,13 +124,56 @@ export const USDA_NUTRIENT_ID_TO_KEY = Object.fromEntries(
   NUTRIENTS.flatMap(nutrient => nutrient.usdaNutrientIds.map(id => [String(id), nutrient.key])),
 );
 
+export const USDA_NUTRIENT_NUMBER_TO_KEY = {
+  203: 'protein',
+  204: 'fat',
+  205: 'carbs',
+  207: 'ash',
+  208: 'calories',
+  255: 'water',
+  269: 'sugars',
+  291: 'fiber',
+  301: 'calcium',
+  303: 'iron',
+  304: 'magnesium',
+  305: 'phosphorus',
+  306: 'potassium',
+  307: 'sodium',
+  309: 'zinc',
+  312: 'copper',
+  315: 'manganese',
+  317: 'selenium',
+  318: 'vitaminA',
+  323: 'vitaminE',
+  328: 'vitaminD',
+  401: 'vitaminC',
+  404: 'vitaminB1',
+  405: 'vitaminB2',
+  406: 'vitaminB3',
+  415: 'vitaminB6',
+  417: 'folate',
+  418: 'vitaminB12',
+  430: 'vitaminK',
+  601: 'cholesterol',
+  605: 'transFat',
+  606: 'saturatedFat',
+  618: 'pufa18_2',
+  619: 'pufa18_3',
+  621: 'dha',
+  629: 'epa',
+  631: 'dpa',
+  645: 'monounsaturatedFat',
+  646: 'polyunsaturatedFat',
+};
+
 export function mapUsdaNutrients(foodNutrients = []) {
   const nutrients = Object.fromEntries(NUTRIENTS.map(nutrient => [nutrient.key, null]));
 
   for (const item of foodNutrients) {
     const nutrient = item.nutrient || {};
     const nutrientId = item.nutrientId ?? item.nutrient?.id ?? item.id;
-    const key = USDA_NUTRIENT_ID_TO_KEY[String(nutrientId)];
+    const nutrientNumber = item.number ?? nutrient.number;
+    const key = USDA_NUTRIENT_ID_TO_KEY[String(nutrientId)] || USDA_NUTRIENT_NUMBER_TO_KEY[String(nutrientNumber)];
     if (!key) continue;
 
     const rawValue = item.value ?? item.amount;

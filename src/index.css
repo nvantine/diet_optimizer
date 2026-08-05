@@ -128,6 +128,7 @@ h2 {
 .hero-panel,
 .card,
 .manual-food-card,
+.random-food-card,
 .chart-card,
 .stat-card {
   border: 1px solid var(--border);
@@ -257,10 +258,16 @@ h2 {
   justify-self: start;
 }
 
-.manual-food-card {
+.manual-food-card,
+.random-food-card {
   margin: 1rem 0;
   padding: 1rem;
   text-align: left;
+}
+
+.random-food-card {
+  display: grid;
+  gap: 1rem;
 }
 
 .manual-submit-button,
@@ -277,6 +284,36 @@ h2 {
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
+.ingredient-list-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.ingredient-toolbar {
+  align-items: center;
+  backdrop-filter: blur(18px);
+  background: rgba(19, 19, 31, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.toolbar-link {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-weight: 700;
+  padding: 0.55rem 0.75rem;
+  text-decoration: none;
+}
+
 .food-grid {
   display: grid;
   gap: 1rem;
@@ -290,6 +327,38 @@ h2 {
   gap: 1rem;
   padding: 1rem;
   text-align: left;
+}
+
+.food-card-summary {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.food-card-summary h3,
+.food-card-summary p {
+  margin-bottom: 0;
+}
+
+.food-card-details {
+  display: grid;
+  gap: 1rem;
+}
+
+.row-toggle {
+  border-radius: 50%;
+  height: 2.4rem;
+  padding: 0;
+  width: 2.4rem;
+}
+
+.remove-button {
+  justify-self: end;
+}
+
+.serving-pill {
+  white-space: nowrap;
 }
 
 .nutrient-chips {
@@ -510,6 +579,7 @@ legend {
   .search-row,
   .result-card,
   .result-grid,
+  .food-card-summary,
   .constraint-row {
     grid-template-columns: 1fr;
   }

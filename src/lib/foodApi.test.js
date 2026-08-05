@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { searchFoods, mapUsdaFood } from './foodApi';
+import { searchFoods, mapUsdaFood, listRandomFoundationFoods } from './foodApi';
 
 describe('USDA FoodData Central API', () => {
   afterEach(() => {
@@ -86,4 +86,51 @@ describe('USDA FoodData Central API', () => {
   it('requires the USDA API key before searching', async () => {
     await expect(searchFoods('egg', '')).rejects.toThrow('USDA API key is required');
   });
+
+  it('lists random Foundation foods from USDA list pages, filters zero calories, and applies requested serving bounds', async () => {
+    const firstPageFoods = Array.from({ length: 8 }, (_, index) => usdaListFood({
+      fdcId: 1000 + index,
+      description: `Foundation food ${index}`,
+      calories: index === 0 ? 0 : 100 + index,
+    }));
+    const secondPageFoods = Array.from({ length: 8 }, (_, index) => usdaListFood({
+      fdcId: 2000 + index,
+      description: `Backfill food ${index}`,
+      calories: 200 + index,
+    }));
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => firstPageFoods })
+      .mockResolvedValueOnce({ ok: true, json: async () => secondPageFoods }));
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+    const foods = await listRandomFoundationFoods(10, 'abc123', { min: 0.5, max: 3 });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const firstUrl = new URL(fetch.mock.calls[0][0]);
+    expect(`${firstUrl.origin}${firstUrl.pathname}`).toBe('https://api.nal.usda.gov/fdc/v1/foods/list');
+    expect(firstUrl.searchParams.get('dataType')).toBe('Foundation');
+    expect(firstUrl.searchParams.get('pageSize')).toBe('200');
+    expect(firstUrl.searchParams.get('pageNumber')).toBe('1');
+    expect(firstUrl.searchParams.get('api_key')).toBe('abc123');
+    expect(new URL(fetch.mock.calls[1][0]).searchParams.get('pageNumber')).toBe('2');
+    expect(foods).toHaveLength(10);
+    expect(foods.every(food => food.nutrients.calories > 0)).toBe(true);
+    expect(foods.every(food => food.servingBounds.min === 0.5 && food.servingBounds.max === 3)).toBe(true);
+  });
+
+  it('requires the USDA API key before listing random Foundation foods', async () => {
+    await expect(listRandomFoundationFoods(5, '', { min: 0, max: 10 })).rejects.toThrow('USDA API key is required');
+  });
 });
+
+function usdaListFood({ fdcId, description, calories }) {
+  return {
+    fdcId,
+    description,
+    dataType: 'Foundation',
+    foodNutrients: [
+      { number: '208', name: 'Energy', unitName: 'kcal', amount: calories },
+      { number: '203', name: 'Protein', unitName: 'g', amount: 10 },
+    ],
+  };
+}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { defaultConstraints, formatNutrientValue, NUTRIENTS, NUTRIENT_BY_KEY, NUTRIENT_TIERS, nutrientIsVisibleInTier } from '../lib/nutrientMap';
 import { WHOLE_FOODS_PRESET } from '../lib/defaultFoods';
+import { listRandomFoundationFoods } from '../lib/foodApi';
 import { buildAndSolve } from '../lib/solver';
 import ApiKeySettings from './ApiKeySettings';
 import GoalsPanel from './GoalsPanel';
@@ -21,6 +22,9 @@ export default function DietOptimizer() {
   const [constraintTier, setConstraintTier] = useState(NUTRIENT_TIERS.simple);
   const [constraints, setConstraints] = useState(defaultConstraints(NUTRIENT_TIERS.simple));
   const [objective, setObjective] = useState(DEFAULT_OBJECTIVE);
+  const [randomSettings, setRandomSettings] = useState({ count: 30, min: 0, max: 10 });
+  const [randomMessage, setRandomMessage] = useState(null);
+  const [generatingRandomFoods, setGeneratingRandomFoods] = useState(false);
   const [chartType, setChartType] = useState('servings');
   const [solution, setSolution] = useState(EMPTY_SOLUTION);
   const [solving, setSolving] = useState(false);
@@ -29,6 +33,29 @@ export default function DietOptimizer() {
   function resetToWholeFoodsPreset() {
     if (!window.confirm('Replace your current food list with the whole-foods preset?')) return;
     setFoods(WHOLE_FOODS_PRESET.map(food => ({ ...food, nutrients: { ...food.nutrients }, servingBounds: { ...food.servingBounds } })));
+  }
+
+  function updateRandomSetting(key, value) {
+    setRandomSettings(current => ({ ...current, [key]: value === '' ? '' : Number(value) }));
+  }
+
+  async function generateRandomFoods() {
+    if (!window.confirm('Replace your current food list with random USDA Foundation foods?')) return;
+    setGeneratingRandomFoods(true);
+    setRandomMessage(null);
+    try {
+      const count = clampNumber(randomSettings.count, 1, 100, 30);
+      const min = Math.max(0, toFiniteNumber(randomSettings.min, 0));
+      const max = Math.max(min, toFiniteNumber(randomSettings.max, 10));
+      const generatedFoods = await listRandomFoundationFoods(count, apiKey, { min, max });
+      setFoods(generatedFoods);
+      setRandomSettings({ count, min, max });
+      setRandomMessage(`Generated ${generatedFoods.length} random Foundation foods.`);
+    } catch (error) {
+      setRandomMessage(error.message);
+    } finally {
+      setGeneratingRandomFoods(false);
+    }
   }
 
   const activeConstraints = useMemo(() => Object.fromEntries(Object.entries(constraints).filter(([key]) => {
@@ -61,10 +88,33 @@ export default function DietOptimizer() {
         <ApiKeySettings apiKey={apiKey} setApiKey={setApiKey} />
         <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
         <ManualFoodForm onAdd={addFood} />
+        <section className="random-food-card" aria-labelledby="random-foundation-heading">
+          <div>
+            <div className="section-kicker">Random test data</div>
+            <h3 id="random-foundation-heading">Random Foundation foods generator</h3>
+            <p className="muted">Fetches USDA Foundation Food pages, samples them randomly, and replaces the current list with editable 100g-unit bounds.</p>
+          </div>
+          <div className="grid form-grid">
+            <label>
+              How many foods?
+              <input type="number" min="1" max="100" step="1" value={randomSettings.count} onChange={event => updateRandomSetting('count', event.target.value)} />
+            </label>
+            <label>
+              Default min serving
+              <input type="number" min="0" step="0.25" value={randomSettings.min} onChange={event => updateRandomSetting('min', event.target.value)} />
+            </label>
+            <label>
+              Default max serving
+              <input type="number" min="0" step="0.25" value={randomSettings.max} onChange={event => updateRandomSetting('max', event.target.value)} />
+            </label>
+          </div>
+          <button type="button" onClick={generateRandomFoods} disabled={generatingRandomFoods}>{generatingRandomFoods ? 'Generating...' : 'Generate random foods'}</button>
+          {randomMessage && <p className={randomMessage.startsWith('Generated') ? 'muted' : 'alert'}>{randomMessage}</p>}
+        </section>
         <div className="preset-actions"><button type="button" onClick={resetToWholeFoodsPreset}>Reset to whole-foods preset</button><p className="muted">Loads {WHOLE_FOODS_PRESET.length} editable staple foods with rough US-average costs and realistic max 100g-unit caps.</p></div>
         <IngredientList foods={foods} setFoods={setFoods} />
       </section>
-      <section className="card">
+      <section id="goals-section" className="card">
         <div className="section-heading"><span>2</span><div><h2>Set min/max constraints</h2><p className="muted">Every visible tracked nutrient can have a daily lower bound, upper bound, or both. Blank means inactive.</p></div></div>
         <GoalsPanel constraints={constraints} selectedTier={constraintTier} setConstraints={setConstraints} setSelectedTier={setConstraintTier} />
       </section>
@@ -87,7 +137,7 @@ export default function DietOptimizer() {
           </label>
         </div>
       </section>
-      <section className="card">
+      <section id="results-section" className="card">
         <div className="section-heading"><span>4</span><div><h2>Optimization result</h2><p className="muted">Solved asynchronously with highs.js/WebAssembly. Decision variables are one daily 100g-unit amount per food.</p></div></div>
         {foods.length === 0 && <p className="empty-state">Add foods to build a feasible nutrition LP.</p>}
         {solving && <p className="muted">Solving with highs.js...</p>}
@@ -104,6 +154,8 @@ export default function DietOptimizer() {
 
 function objectiveLabel(key) { return key === 'cost' ? 'cost' : NUTRIENT_BY_KEY[key]?.label || key; }
 function formatObjectiveValue(key, value) { return key === 'cost' ? `$${Number(value).toFixed(2)}` : formatNutrientValue(key, value); }
+function clampNumber(value, min, max, fallback) { const parsed = toFiniteNumber(value, fallback); return Math.min(max, Math.max(min, Math.trunc(parsed))); }
+function toFiniteNumber(value, fallback) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
 function ChartTabs({ chartType, setChartType }) { return <div className="chart-tabs" role="tablist" aria-label="Result chart type">{CHART_TYPES.map(tab => <button key={tab.key} type="button" className={chartType === tab.key ? 'active-tab' : 'ghost'} onClick={() => setChartType(tab.key)}>{tab.label}</button>)}</div>; }
 function ServingsChart({ data }) { return <ResponsiveContainer width="100%" height={280}><BarChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="servings" fill="#a855f7" /></BarChart></ResponsiveContainer>; }
 function MacroChart({ data }) { return <ResponsiveContainer width="100%" height={300}><PieChart><Tooltip /><Legend /><Pie data={data} dataKey="calories" nameKey="name" innerRadius={70} outerRadius={115}>{data.map((entry, index) => <Cell key={entry.name} fill={MACRO_COLORS[index % MACRO_COLORS.length]} />)}</Pie></PieChart></ResponsiveContainer>; }
