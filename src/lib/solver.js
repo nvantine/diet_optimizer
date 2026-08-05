@@ -30,21 +30,21 @@ async function createHighsOptions() {
   return { locateFile: () => highsWasmUrl };
 }
 
-export async function buildAndSolve(foods, constraints = {}, objective = DEFAULT_OBJECTIVE) {
+export async function buildAndSolve(foods, constraints = {}, objective = DEFAULT_OBJECTIVE, categoryShares = {}) {
   const normalizedObjective = normalizeObjective(objective);
   if (!foods.length) return infeasibleResult(normalizedObjective);
 
-  const lp = buildLpProblem(foods, constraints, normalizedObjective);
+  const lp = buildLpProblem(foods, constraints, normalizedObjective, categoryShares);
   const highs = await getHighs();
   const raw = highs.solve(lp);
-  const result = normalizeResult(raw, foods, constraints, normalizedObjective, lp);
+  const result = normalizeResult(raw, foods, constraints, normalizedObjective, lp, categoryShares);
   if (result.feasible) {
     result.dualVerification = verifyFirstBindingDual(highs, foods, constraints, normalizedObjective, result);
   }
   return result;
 }
 
-export function buildLpProblem(foods, constraints = {}, objective = DEFAULT_OBJECTIVE) {
+export function buildLpProblem(foods, constraints = {}, objective = DEFAULT_OBJECTIVE, categoryShares = {}) {
   const normalizedObjective = normalizeObjective(objective);
   const lines = [
     normalizedObjective.direction === 'max' ? 'Maximize' : 'Minimize',
@@ -61,6 +61,8 @@ export function buildLpProblem(foods, constraints = {}, objective = DEFAULT_OBJE
       lines.push(` ${constraintRowName(key, 'max')}: ${linearExpression(foods, key)} <= ${formatNumber(normalized.max)}`);
     }
   }
+
+  for (const row of categoryShareRows(foods, constraints, categoryShares)) lines.push(row);
 
   lines.push('Bounds');
   for (const food of foods) {
@@ -85,8 +87,19 @@ function linearExpression(foods, key) {
   return terms.length ? terms.join(' + ') : '0';
 }
 
-function normalizeResult(raw, foods, constraints, objective, lp) {
-  if (raw.Status !== 'Optimal') return infeasibleResult(objective, raw, lp);
+function categoryShareRows(foods, constraints = {}, categoryShares = {}) {
+  const calorieBounds = normalizeBounds(constraints.calories || {});
+  const calorieTarget = calorieBounds.max ?? calorieBounds.min;
+  if (calorieTarget == null) return [];
+  return Object.entries(categoryShares || {}).flatMap(([category, share]) => {
+    const categoryFoods = foods.filter(food => (food.category || 'other') === category);
+    if (categoryFoods.length === 0 || !Number.isFinite(Number(share)) || Number(share) < 0) return [];
+    return [` cat_${sanitizeName(category)}_max: ${linearExpression(categoryFoods, 'calories')} <= ${formatNumber(Number(share) * calorieTarget)}`];
+  });
+}
+
+function normalizeResult(raw, foods, constraints, objective, lp, categoryShares = {}) {
+  if (raw.Status !== 'Optimal') return infeasibleResult(objective, raw, lp, hasCategoryShareConstraints(categoryShares) ? 'category-shares' : 'nutrient-bounds');
 
   const servingsByFoodId = {};
   const selectedFoods = [];
@@ -168,8 +181,8 @@ function verifyFirstBindingDual(highs, foods, constraints, objective, solution) 
   return null;
 }
 
-function infeasibleResult(objective = DEFAULT_OBJECTIVE, raw = {}, lp = '') {
-  return { feasible: false, bounded: raw.Status !== 'Unbounded', solver: 'highs.js', objective, objectiveValue: Number.POSITIVE_INFINITY, result: Number.POSITIVE_INFINITY, totalCost: Number.POSITIVE_INFINITY, nutrientTotals: {}, servingsByFoodId: {}, selectedFoods: [], dualValues: {}, dualVerification: null, rawStatus: raw.Status || 'Not solved', infeasibilityReason: 'nutrient-bounds', lp };
+function infeasibleResult(objective = DEFAULT_OBJECTIVE, raw = {}, lp = '', infeasibilityReason = 'nutrient-bounds') {
+  return { feasible: false, bounded: raw.Status !== 'Unbounded', solver: 'highs.js', objective, objectiveValue: Number.POSITIVE_INFINITY, result: Number.POSITIVE_INFINITY, totalCost: Number.POSITIVE_INFINITY, nutrientTotals: {}, servingsByFoodId: {}, selectedFoods: [], dualValues: {}, dualVerification: null, rawStatus: raw.Status || 'Not solved', infeasibilityReason, lp };
 }
 
 function normalizeObjective(objective = DEFAULT_OBJECTIVE) {
@@ -192,6 +205,7 @@ function coefficientFor(food, key) {
 }
 
 function constraintRowName(key, bound) { return `c_${sanitizeName(key)}_${bound}`; }
+function hasCategoryShareConstraints(categoryShares = {}) { return Object.values(categoryShares || {}).some(share => Number.isFinite(Number(share)) && Number(share) >= 0); }
 function variableName(id) { return `food_${sanitizeName(id)}`; }
 function sanitizeName(value) { return String(value).replace(/[^a-zA-Z0-9_]/g, '_'); }
 function structuredCloneConstraints(constraints) { return JSON.parse(JSON.stringify(constraints || {})); }

@@ -97,4 +97,17 @@ describe('buildAndSolve', () => {
     expect(solution.servingsByFoodId).toEqual({});
     expect(solution.infeasibilityReason).toBe('nutrient-bounds');
   });
+
+  it('adds category share calorie constraints on top of per-food serving bounds', async () => {
+    const foods = [
+      { id: 'protein-food', name: 'Protein food', category: 'protein', nutrients: { calories: 100, protein: 20 }, servingBounds: { min: 0, max: 10 } },
+      { id: 'grain-food', name: 'Grain food', category: 'grain', nutrients: { calories: 100, protein: 0 }, servingBounds: { min: 0, max: 10 } },
+    ];
+
+    const solution = await buildAndSolve(foods, { calories: { max: 1000 }, protein: { min: 60 } }, { nutrientKey: 'calories', direction: 'min' }, { protein: 0.25, grain: 0.75 });
+
+    expect(solution.feasible).toBe(false);
+    expect(solution.lp).toContain('cat_protein_max');
+    expect(solution.infeasibilityReason).toBe('category-shares');
+  });
 });

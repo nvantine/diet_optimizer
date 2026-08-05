@@ -103,18 +103,27 @@ describe('DietOptimizer', () => {
     expect(screen.queryByText(/Chicken breast/i)).not.toBeInTheDocument();
   });
 
-  it('renders result table, category chart tab, and shadow-price explanations after solving', async () => {
+  it('renders result table, category chart tab, and removes the shadow-price display after solving', async () => {
     localStorage.setItem('diet-optimizer-foods', JSON.stringify([
-      { id: 'protein-food', name: 'Protein food', category: 'protein', dataType: 'Manual', unit: 'per 100g', cost: 0, servingBounds: { min: 0, max: 10 }, nutrients: { calories: 100, protein: 20, fat: 1, carbs: 1, fiber: 5, sodium: 1 } },
+      { id: 'protein-food', name: 'Protein food, very long name', category: 'protein', dataType: 'Manual', unit: 'per 100g', cost: 0, servingBounds: { min: 0, max: 10 }, nutrients: { calories: 100, protein: 20, fat: 1, carbs: 1, fiber: 5, sodium: 1 } },
     ]));
     render(<DietOptimizer />);
-    await waitFor(() => expect(screen.getByText(/Shadow prices/i)).toBeInTheDocument());
-    expect(screen.getByText(/Cost is currently a placeholder/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Calories contributed/i)).toBeInTheDocument());
+    expect(screen.queryByText(/Cost is currently a placeholder/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Category calories/i })).toBeInTheDocument();
-    expect(screen.getByText(/Calories contributed/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Macro donut/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Constraint radar/i })).toBeInTheDocument();
-    expect(screen.getByText(/The shadow price on a constraint tells you/i)).toBeInTheDocument();
-    expect(screen.getByText(/Dual check/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Shadow prices/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/The shadow price on a constraint tells you/i)).not.toBeInTheDocument();
+  });
+
+  it('hides manual food form and shows a temporary cost warning only after switching to cost objective', async () => {
+    const user = userEvent.setup();
+    render(<DietOptimizer />);
+    expect(screen.queryByRole('heading', { name: /Add food manually/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cost is currently a placeholder/i)).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/Objective nutrient/i), 'cost');
+    expect(screen.getByText(/Cost is currently a placeholder/i)).toBeInTheDocument();
   });
 });
