@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { defaultConstraints, formatNutrientValue, NUTRIENT_BY_KEY, NUTRIENT_TIERS, nutrientIsVisibleInTier } from '../lib/nutrientMap';
+import { defaultConstraints, formatNutrientValue, NUTRIENTS, NUTRIENT_BY_KEY, NUTRIENT_TIERS, nutrientIsVisibleInTier } from '../lib/nutrientMap';
 import { WHOLE_FOODS_PRESET } from '../lib/defaultFoods';
 import { buildAndSolve } from '../lib/solver';
 import ApiKeySettings from './ApiKeySettings';
@@ -54,7 +54,7 @@ export default function DietOptimizer() {
     <main className="app-shell">
       <section className="hero-panel">
         <p className="section-kicker">USDA convex nutrition optimizer</p><h1>Food Optimizer</h1>
-        <p>Build a clear nutrition linear program from USDA foods. Set daily min/max bounds, choose cost or calories as the linear objective, then solve with HiGHS.</p>
+        <p>Build a clear nutrition linear program from USDA foods. Set daily min/max bounds, choose any tracked nutrient or cost as the linear objective, choose min/max direction, then solve with HiGHS.</p>
       </section>
       <section className="card">
         <div className="section-heading"><span>1</span><div><h2>Build your food list</h2><p className="muted">Search FoodData Central with a local browser key, or add editable per-100g nutrient and cost data manually.</p></div></div>
@@ -69,9 +69,22 @@ export default function DietOptimizer() {
         <GoalsPanel constraints={constraints} selectedTier={constraintTier} setConstraints={setConstraints} setSelectedTier={setConstraintTier} />
       </section>
       <section className="card">
-        <div className="section-heading"><span>3</span><div><h2>Choose objective</h2><p className="muted">The LP can minimize total calories or total editable food cost while still enforcing any nutrient bounds you set.</p></div></div>
+        <div className="section-heading"><span>3</span><div><h2>Choose objective</h2><p className="muted">Pick the LP objective variable and whether the solver should minimize or maximize it while enforcing the nutrient bounds.</p></div></div>
         <div className="objective-grid">
-          <label htmlFor="objective-kind">Optimization objective<select id="objective-kind" aria-label="Optimization objective" value={objective.nutrientKey} onChange={event => setObjective({ nutrientKey: event.target.value, direction: 'min' })}><option value="calories">Minimize calories</option><option value="cost">Minimize cost</option></select></label>
+          <label htmlFor="objective-direction">
+            Objective direction
+            <select id="objective-direction" aria-label="Objective direction" value={objective.direction} onChange={event => setObjective(current => ({ ...current, direction: event.target.value }))}>
+              <option value="min">Minimize</option>
+              <option value="max">Maximize</option>
+            </select>
+          </label>
+          <label htmlFor="objective-nutrient">
+            Objective nutrient
+            <select id="objective-nutrient" aria-label="Objective nutrient" value={objective.nutrientKey} onChange={event => setObjective(current => ({ ...current, nutrientKey: event.target.value }))}>
+              <option value="cost">Cost</option>
+              {NUTRIENTS.map(nutrient => <option key={nutrient.key} value={nutrient.key}>{nutrient.label}</option>)}
+            </select>
+          </label>
         </div>
       </section>
       <section className="card">
@@ -80,7 +93,7 @@ export default function DietOptimizer() {
         {solving && <p className="muted">Solving with highs.js...</p>}
         {foods.length > 0 && !solving && !solution.feasible && <p className="alert">No feasible combination satisfies these nutrient bounds. Relax constraints or add more foods. Solver status: {solution.rawStatus}</p>}
         {solution.feasible && <div className="result-grid">
-          <div className="stat-card"><span>{objective.nutrientKey === 'cost' ? 'Minimum cost' : 'Minimum Energy'}</span><strong>{objective.nutrientKey === 'cost' ? `$${solution.objectiveValue.toFixed(2)}` : formatNutrientValue(objective.nutrientKey, solution.objectiveValue)}</strong><span>Total cost: ${solution.totalCost.toFixed(2)}</span></div>
+          <div className="stat-card"><span>{objective.direction === 'max' ? 'Maximum' : 'Minimum'} {objectiveLabel(objective.nutrientKey)}</span><strong>{formatObjectiveValue(objective.nutrientKey, solution.objectiveValue)}</strong><span>Total cost: ${solution.totalCost.toFixed(2)}</span></div>
           <div className="chart-card"><ChartTabs chartType={chartType} setChartType={setChartType} />{chartType === 'servings' && <ServingsChart data={selectedData} />}{chartType === 'macros' && <MacroChart data={macroData} />}{chartType === 'radar' && <RadarConstraintsChart data={radarData} />}</div>
         </div>}
       </section>
@@ -89,6 +102,8 @@ export default function DietOptimizer() {
   );
 }
 
+function objectiveLabel(key) { return key === 'cost' ? 'cost' : NUTRIENT_BY_KEY[key]?.label || key; }
+function formatObjectiveValue(key, value) { return key === 'cost' ? `$${Number(value).toFixed(2)}` : formatNutrientValue(key, value); }
 function ChartTabs({ chartType, setChartType }) { return <div className="chart-tabs" role="tablist" aria-label="Result chart type">{CHART_TYPES.map(tab => <button key={tab.key} type="button" className={chartType === tab.key ? 'active-tab' : 'ghost'} onClick={() => setChartType(tab.key)}>{tab.label}</button>)}</div>; }
 function ServingsChart({ data }) { return <ResponsiveContainer width="100%" height={280}><BarChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="servings" fill="#a855f7" /></BarChart></ResponsiveContainer>; }
 function MacroChart({ data }) { return <ResponsiveContainer width="100%" height={300}><PieChart><Tooltip /><Legend /><Pie data={data} dataKey="calories" nameKey="name" innerRadius={70} outerRadius={115}>{data.map((entry, index) => <Cell key={entry.name} fill={MACRO_COLORS[index % MACRO_COLORS.length]} />)}</Pie></PieChart></ResponsiveContainer>; }

@@ -26,12 +26,18 @@ describe('DietOptimizer', () => {
     expect(screen.queryByText(/meal share/i)).not.toBeInTheDocument();
   });
 
-  it('lets users choose minimize calories or minimize cost', async () => {
+  it('lets users choose an objective nutrient and whether to minimize or maximize it', async () => {
     const user = userEvent.setup();
     render(<DietOptimizer />);
-    expect(screen.getByLabelText(/Optimization objective/i)).toHaveValue('calories');
-    await user.selectOptions(screen.getByLabelText(/Optimization objective/i), 'cost');
-    expect(screen.getByLabelText(/Optimization objective/i)).toHaveValue('cost');
+
+    expect(screen.getByLabelText(/Objective direction/i)).toHaveValue('min');
+    expect(screen.getByLabelText(/Objective nutrient/i)).toHaveValue('calories');
+
+    await user.selectOptions(screen.getByLabelText(/Objective direction/i), 'max');
+    await user.selectOptions(screen.getByLabelText(/Objective nutrient/i), 'protein');
+
+    expect(screen.getByLabelText(/Objective direction/i)).toHaveValue('max');
+    expect(screen.getByLabelText(/Objective nutrient/i)).toHaveValue('protein');
   });
 
   it('passes selected food ids into IngredientSearch for already-added awareness', () => {
