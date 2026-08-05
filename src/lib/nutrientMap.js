@@ -26,7 +26,7 @@ export function nutrientIsVisibleInTier(nutrient, selectedTier) {
 // responses before mapping: pantothenic acid 1170, biotin 1176, chromium 1096,
 // fluoride 1099, iodine 1100, and molybdenum 1102.
 export const NUTRIENTS = [
-  { key: 'calories', label: 'Energy', unit: 'kcal', group: 'macros', tier: 'simple', usdaNutrientIds: [1008], defaultMax: 2200 },
+  { key: 'calories', label: 'Energy', unit: 'kcal', group: 'macros', tier: 'simple', usdaNutrientIds: [1008, 2047, 2048], defaultMax: 2200 },
   { key: 'protein', label: 'Protein', unit: 'g', group: 'macros', tier: 'simple', usdaNutrientIds: [1003], defaultMin: 120 },
   { key: 'fat', label: 'Total fat', unit: 'g', group: 'macros', tier: 'simple', usdaNutrientIds: [1004] },
   { key: 'saturatedFat', label: 'Saturated fat', unit: 'g', group: 'macros', tier: 'medium', usdaNutrientIds: [1258], defaultMax: 20 },

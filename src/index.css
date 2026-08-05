@@ -357,7 +357,8 @@ legend {
   gap: 0.65rem;
 }
 
-.preset-card {
+.preset-card,
+.meal-share-card {
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--border);
   border-radius: 1rem;
@@ -369,7 +370,10 @@ legend {
   margin-bottom: 0.35rem;
 }
 
-.preset-grid {
+.preset-grid,
+.meal-share-grid {
+  display: grid;
+  gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
@@ -429,6 +433,34 @@ legend {
 .stat-card,
 .chart-card {
   padding: 1rem;
+}
+
+.preset-actions {
+  align-items: flex-start;
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.meal-results,
+.shadow-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 1rem;
+}
+
+.mini-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.85rem;
+  text-align: left;
+}
+
+.mini-card h4 {
+  margin: 0 0 0.5rem;
+  text-transform: capitalize;
 }
 
 .stat-card span {

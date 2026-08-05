@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { defaultConstraints, formatNutrientValue, NUTRIENTS, NUTRIENT_BY_KEY, NUTRIENT_TIERS, nutrientIsVisibleInTier } from '../lib/nutrientMap';
+import { WHOLE_FOODS_PRESET } from '../lib/defaultFoods';
 import { buildAndSolve } from '../lib/solver';
 import ApiKeySettings from './ApiKeySettings';
 import GoalsPanel from './GoalsPanel';
@@ -9,29 +10,40 @@ import IngredientSearch from './IngredientSearch';
 import ManualFoodForm from './ManualFoodForm';
 
 const DEFAULT_OBJECTIVE = { nutrientKey: 'calories', direction: 'min' };
+const FOOD_STORAGE_KEY = 'diet-optimizer-foods';
+const MEALS = ['breakfast', 'lunch', 'dinner'];
 const EMPTY_SOLUTION = {
   feasible: false,
   solver: 'highs.js',
   objective: DEFAULT_OBJECTIVE,
   objectiveValue: Number.POSITIVE_INFINITY,
   nutrientTotals: {},
+  mealNutrientTotals: {},
+  mealServings: {},
   servingsByFoodId: {},
   selectedFoods: [],
+  selectedMeals: [],
   dualValues: {},
   rawStatus: 'Not solved',
 };
 
 export default function DietOptimizer() {
   const [apiKey, setApiKey] = useState('');
-  const [foods, setFoods] = useState([]);
+  const [foods, setFoods] = useState(loadSavedFoods);
   const [constraintTier, setConstraintTier] = useState(NUTRIENT_TIERS.simple);
   const [constraints, setConstraints] = useState(defaultConstraints(NUTRIENT_TIERS.simple));
+  const [mealShareLimits, setMealShareLimits] = useState(() => defaultMealShareLimits());
   const [objective, setObjective] = useState(DEFAULT_OBJECTIVE);
   const [solution, setSolution] = useState(EMPTY_SOLUTION);
   const [solving, setSolving] = useState(false);
 
   function addFood(food) {
     setFoods(current => (current.some(existing => existing.id === food.id) ? current : [...current, food]));
+  }
+
+  function resetToWholeFoodsPreset() {
+    if (!window.confirm('Replace your current food list with the whole-foods preset?')) return;
+    setFoods(WHOLE_FOODS_PRESET.map(food => ({ ...food, nutrients: { ...food.nutrients }, servingBounds: { ...food.servingBounds } })));
   }
 
   const visibleNutrients = useMemo(
@@ -46,6 +58,14 @@ export default function DietOptimizer() {
     }),
   ), [constraintTier, constraints]);
 
+  const activeMealShareLimits = useMemo(() => Object.fromEntries(
+    visibleNutrients.map(nutrient => [nutrient.key, mealShareLimits[nutrient.key] ?? 0.5]),
+  ), [mealShareLimits, visibleNutrients]);
+
+  useEffect(() => {
+    localStorage.setItem(FOOD_STORAGE_KEY, JSON.stringify(foods));
+  }, [foods]);
+
   useEffect(() => {
     let cancelled = false;
     if (foods.length === 0) {
@@ -55,7 +75,7 @@ export default function DietOptimizer() {
     }
 
     setSolving(true);
-    buildAndSolve(foods, activeConstraints, objective)
+    buildAndSolve(foods, activeConstraints, objective, activeMealShareLimits)
       .then(nextSolution => {
         if (!cancelled) setSolution(nextSolution);
       })
@@ -69,10 +89,11 @@ export default function DietOptimizer() {
       });
 
     return () => { cancelled = true; };
-  }, [foods, activeConstraints, objective]);
+  }, [foods, activeConstraints, objective, activeMealShareLimits]);
 
-  const selectedData = useMemo(() => solution.selectedFoods.map(food => ({
+  const selectedData = useMemo(() => (solution.selectedMeals || []).map(food => ({
     name: food.name,
+    meal: food.meal,
     servings: food.servings,
     calories: food.servings * (food.nutrients.calories || 0),
   })), [solution]);
@@ -100,6 +121,10 @@ export default function DietOptimizer() {
         <ApiKeySettings apiKey={apiKey} setApiKey={setApiKey} />
         <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
         <ManualFoodForm onAdd={addFood} />
+        <div className="preset-actions">
+          <button type="button" onClick={resetToWholeFoodsPreset}>Reset to whole-foods preset</button>
+          <p className="muted">Loads {WHOLE_FOODS_PRESET.length} editable staple foods. This replaces the current list and saved browser state.</p>
+        </div>
         <IngredientList foods={foods} setFoods={setFoods} />
       </section>
 
@@ -116,6 +141,8 @@ export default function DietOptimizer() {
           selectedTier={constraintTier}
           setConstraints={setConstraints}
           setSelectedTier={setConstraintTier}
+          mealShareLimits={mealShareLimits}
+          setMealShareLimits={setMealShareLimits}
         />
       </section>
 
@@ -166,7 +193,11 @@ export default function DietOptimizer() {
         {foods.length === 0 && <p className="empty-state">Add foods to build a feasible nutrition LP.</p>}
         {solving && <p className="muted">Solving with highs.js...</p>}
         {foods.length > 0 && !solving && !solution.feasible && (
-          <p className="alert">No feasible combination satisfies these nutrient bounds. Relax constraints or add more foods. Solver status: {solution.rawStatus}</p>
+          <p className="alert">
+            No feasible combination satisfies these nutrient bounds. Relax constraints or add more foods.
+            {solution.infeasibilityReason === 'meal-share' ? ' The meal-split share bounds are active; try relaxing a meal share cap.' : ''}
+            {' '}Solver status: {solution.rawStatus}
+          </p>
         )}
         {solution.feasible && (
           <div className="result-grid">
@@ -175,7 +206,7 @@ export default function DietOptimizer() {
               <strong>{formatNutrientValue(objective.nutrientKey, solution.objectiveValue)}</strong>
             </div>
             <div className="chart-card">
-              <h3>Selected 100g units</h3>
+              <h3>Selected 100g units by meal</h3>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={selectedData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -185,6 +216,17 @@ export default function DietOptimizer() {
                   <Bar dataKey="servings" fill="#a855f7" />
                 </BarChart>
               </ResponsiveContainer>
+              <div className="meal-results">
+                {MEALS.map(meal => (
+                  <article className="mini-card" key={meal}>
+                    <h4>{meal}</h4>
+                    {(solution.selectedMeals || []).filter(food => food.meal === meal).length === 0 && <p className="muted">No selected foods.</p>}
+                    {(solution.selectedMeals || []).filter(food => food.meal === meal).map(food => (
+                      <p key={`${meal}-${food.id}`}><strong>{food.name}</strong>: {food.servings} × 100g</p>
+                    ))}
+                  </article>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -212,4 +254,19 @@ export default function DietOptimizer() {
       )}
     </main>
   );
+}
+
+function defaultMealShareLimits() {
+  return Object.fromEntries(NUTRIENTS.map(nutrient => [nutrient.key, 0.5]));
+}
+
+function loadSavedFoods() {
+  try {
+    const raw = localStorage.getItem(FOOD_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }

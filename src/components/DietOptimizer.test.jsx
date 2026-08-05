@@ -54,4 +54,29 @@ describe('DietOptimizer', () => {
       undefined,
     );
   });
+
+  it('starts empty without saved foods and can reset to the whole-foods preset', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<DietOptimizer />);
+
+    expect(screen.getByText(/No foods yet/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Reset to whole-foods preset/i }));
+
+    expect(screen.getByText(/Chicken breast/i)).toBeInTheDocument();
+    expect(screen.getByText(/Greek yogurt/i)).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem('diet-optimizer-foods'))).toHaveLength(22);
+  });
+
+  it('loads saved foods from localStorage instead of the preset on page load', () => {
+    localStorage.setItem('diet-optimizer-foods', JSON.stringify([
+      { id: 'saved-food', name: 'Saved lentils', dataType: 'Manual', unit: 'per 100g', cost: 0, servingBounds: { min: 0, max: 1 }, nutrients: { calories: 120, protein: 9 } },
+    ]));
+
+    render(<DietOptimizer />);
+
+    expect(screen.getByText(/Saved lentils/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Chicken breast/i)).not.toBeInTheDocument();
+  });
 });

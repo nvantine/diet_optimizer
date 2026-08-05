@@ -20,7 +20,7 @@ const TIER_OPTIONS = [
   },
 ];
 
-export default function GoalsPanel({ constraints, selectedTier, setConstraints, setSelectedTier }) {
+export default function GoalsPanel({ constraints, selectedTier, setConstraints, setSelectedTier, mealShareLimits = {}, setMealShareLimits }) {
   const [internalTier, setInternalTier] = useState(NUTRIENT_TIERS.simple);
   const [preset, setPreset] = useState({ sex: 'female', weightKg: '', heightCm: '', ageYears: '' });
   const activeTier = selectedTier ?? internalTier;
@@ -59,6 +59,16 @@ export default function GoalsPanel({ constraints, selectedTier, setConstraints, 
       ...current,
       ...presetConstraints,
     }));
+  }
+
+  function updateMealShare(key) {
+    return event => {
+      if (!setMealShareLimits) return;
+      setMealShareLimits(current => ({
+        ...current,
+        [key]: Number(event.target.value) / 100,
+      }));
+    };
   }
 
   return (
@@ -109,6 +119,26 @@ export default function GoalsPanel({ constraints, selectedTier, setConstraints, 
             </span>
           </label>
         ))}
+      </div>
+      <div className="meal-share-card">
+        <h3>Meal-split nutrient caps</h3>
+        <p className="muted">Hard LP share bounds: no breakfast, lunch, or dinner may contain more than this percent of the daily total for each visible nutrient. Very low values can make the LP infeasible.</p>
+        <div className="meal-share-grid">
+          {visibleNutrients.map(nutrient => (
+            <label key={nutrient.key}>
+              {nutrient.label} meal share cap (%)
+              <input
+                aria-label={`${nutrient.label} meal share cap`}
+                max="100"
+                min="0"
+                step="1"
+                type="number"
+                value={Math.round((mealShareLimits[nutrient.key] ?? 0.5) * 100)}
+                onChange={updateMealShare(nutrient.key)}
+              />
+            </label>
+          ))}
+        </div>
       </div>
       <div className="constraint-table">
         <div className="constraint-row constraint-head">
