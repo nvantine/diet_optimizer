@@ -44,7 +44,7 @@ describe('IngredientList', () => {
     expect(screen.getByRole('button', { name: /Collapse all/i })).toBeInTheDocument();
   });
 
-  it('defaults many foods to collapsed, then expands and collapses all rows from the sticky toolbar', async () => {
+  it('defaults many foods to collapsed, then expands and collapses all rows from the non-sticky toolbar', async () => {
     const user = userEvent.setup();
     render(<IngredientList foods={makeFoods(12)} setFoods={vi.fn()} />);
 

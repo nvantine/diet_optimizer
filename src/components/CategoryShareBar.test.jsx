@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import CategoryShareBar from './CategoryShareBar';
@@ -18,11 +18,12 @@ describe('CategoryShareBar', () => {
     expect(screen.getByLabelText(/Category calorie share bar/i)).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('lets a segment label switch to exact percentage editing', async () => {
+  it('lets an always-visible category chip switch to exact percentage editing', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<CategoryShareBar foods={[{ id: 'a', category: 'protein' }, { id: 'b', category: 'grain' }]} shares={{ protein: 40, grain: 60 }} onChange={onChange} calorieTarget={2000} />);
 
+    expect(screen.getByLabelText(/Category calorie share bar/i).querySelector('.category-share-label')).toBeNull();
     await user.click(screen.getByRole('button', { name: /Edit Protein share/i }));
     const input = screen.getByLabelText(/Protein exact share/i);
     await user.clear(input);
@@ -30,5 +31,23 @@ describe('CategoryShareBar', () => {
     await user.tab();
 
     expect(onChange).toHaveBeenLastCalledWith({ protein: 55, grain: 45 });
+  });
+
+  it('updates the vertical drag preview locally and commits only on pointerup', () => {
+    const onChange = vi.fn();
+    const { container } = render(<CategoryShareBar foods={[{ id: 'a', category: 'protein' }, { id: 'b', category: 'grain' }]} shares={{ protein: 40, grain: 60 }} onChange={onChange} calorieTarget={2000} />);
+    const bar = screen.getByLabelText(/Category calorie share bar/i);
+    Object.defineProperty(bar, 'getBoundingClientRect', { configurable: true, value: () => ({ top: 0, height: 100, left: 0, width: 20 }) });
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: /Adjust Protein share/i }), { clientY: 40 });
+    fireEvent.pointerMove(window, { clientY: 55 });
+    fireEvent.pointerMove(window, { clientY: 65 });
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(container.querySelector('.category-share-segment').style.height).toBe('65%');
+
+    fireEvent.pointerUp(window);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith({ protein: 65, grain: 35 });
   });
 });

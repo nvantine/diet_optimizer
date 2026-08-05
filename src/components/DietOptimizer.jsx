@@ -112,16 +112,17 @@ export default function DietOptimizer() {
   return (
     <main className="app-shell">
       <nav className="side-rail" aria-label="Section navigation">
-        <a href="#ingredients-section">Ingredients</a>
-        <a href="#goals-section">Goals</a>
-        <a href="#category-shares-section">Category shares</a>
-        <a href="#results-section">Results</a>
+        <a href="#ingredients-section" aria-label="Ingredients"><span aria-hidden="true">1</span></a>
+        <a href="#goals-section" aria-label="Goals"><span aria-hidden="true">2</span></a>
+        <a href="#category-shares-section" aria-label="Category shares"><span aria-hidden="true">3</span></a>
+        <a href="#results-section" aria-label="Results"><span aria-hidden="true">5</span></a>
       </nav>
+      <div className="app-content">
       <section className="hero-panel">
         <p className="section-kicker">USDA convex nutrition optimizer</p><h1>Food Optimizer</h1>
         <p>Build a clear nutrition linear program from USDA foods. Set daily min/max bounds, choose any tracked nutrient or cost as the linear objective, choose min/max direction, then solve with HiGHS.</p>
       </section>
-      <section id="ingredients-section" className="card">
+      <section id="ingredients-section" className="card ingredients-card">
         <div className="section-heading"><span>1</span><div><h2>Build your food list</h2><p className="muted">Search FoodData Central with a local browser key, or add editable per-100g nutrient and cost data manually.</p></div></div>
         <ApiKeySettings apiKey={apiKey} setApiKey={setApiKey} />
         <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
@@ -153,13 +154,16 @@ export default function DietOptimizer() {
         </section>
         <IngredientList foods={foods} setFoods={setFoods} />
       </section>
-      <section id="goals-section" className="card form-card">
-        <div className="section-heading"><span>2</span><div><h2>Set min/max constraints</h2><p className="muted">Every visible tracked nutrient can have a daily lower bound, upper bound, or both. Blank means inactive.</p></div></div>
-        <GoalsPanel constraints={constraints} selectedTier={constraintTier} setConstraints={setConstraints} setSelectedTier={setConstraintTier} />
-      </section>
-      <CategoryShareBar foods={foods} shares={normalizedCategoryShares} onChange={setCategoryShares} calorieTarget={calorieTarget} />
-      <section className="card form-card">
-        <div className="section-heading"><span>4</span><div><h2>Choose objective</h2><p className="muted">Pick the LP objective variable and whether the solver should minimize or maximize it while enforcing the nutrient bounds.</p></div></div>
+      <div className="goals-share-layout">
+        <CategoryShareBar foods={foods} shares={normalizedCategoryShares} onChange={setCategoryShares} calorieTarget={calorieTarget} />
+        <section id="goals-section" className="card form-card goals-card">
+          <div className="section-heading"><span>2</span><div><h2>Set min/max constraints</h2><p className="muted">Every visible tracked nutrient can have a daily lower bound, upper bound, or both. Blank means inactive.</p></div></div>
+          <GoalsPanel constraints={constraints} selectedTier={constraintTier} setConstraints={setConstraints} setSelectedTier={setConstraintTier} />
+        </section>
+      </div>
+      <div className="objective-results-layout">
+        <section className="card objective-card">
+          <div className="section-heading"><span>4</span><div><h2>Choose objective</h2><p className="muted">Pick the LP objective variable and direction.</p></div></div>
         <div className="objective-grid">
           <label htmlFor="objective-direction">
             Objective direction
@@ -177,17 +181,17 @@ export default function DietOptimizer() {
           </label>
         </div>
         {costToast && objective.nutrientKey === 'cost' && <div className={allCostsAreZero ? 'toast cost-toast cost-toast-alert' : 'toast cost-toast'} role="status">{costToast}</div>}
-      </section>
-      <section id="results-section" className="card results-card">
-        <div className="section-heading"><span>5</span><div><h2>Optimization result</h2><p className="muted">Solved asynchronously with highs.js/WebAssembly. Decision variables are one daily 100g-unit amount per food.</p></div></div>
-        {foods.length === 0 && <p className="empty-state">Add foods to build a feasible nutrition LP.</p>}
-        {solving && <p className="muted">Solving with highs.js...</p>}
-        {foods.length > 0 && !solving && !solution.feasible && <p className="alert">No feasible combination satisfies these nutrient bounds. Relax constraints, category shares, or add more foods. Solver status: {solution.rawStatus}{solution.infeasibilityReason === 'category-shares' ? ' Category share limits are a likely cause.' : ''}</p>}
-        {solution.feasible && <div className="result-grid">
-          <div className="stat-card"><span>{objective.direction === 'max' ? 'Maximum' : 'Minimum'} {objectiveLabel(objective.nutrientKey)}</span><strong>{formatObjectiveValue(objective.nutrientKey, solution.objectiveValue)}</strong><span>Total cost: ${solution.totalCost.toFixed(2)}</span></div>
-          <div className="chart-card"><ChartTabs chartType={chartType} setChartType={setChartType} />{chartType === 'servings' && <ServingsTable data={selectedData} />}{chartType === 'categories' && <CategoryStackedChart data={categoryData} foodKeys={categoryFoodKeys} foods={solution.selectedFoods} />}{chartType === 'macros' && <MacroChart data={macroData} />}{chartType === 'radar' && <RadarConstraintsChart data={radarData} />}</div>
-        </div>}
-      </section>
+        {solution.feasible && <div className="stat-card objective-stat-card"><span>{objective.direction === 'max' ? 'Maximum' : 'Minimum'} {objectiveLabel(objective.nutrientKey)}</span><strong>{formatObjectiveValue(objective.nutrientKey, solution.objectiveValue)}</strong><span>Total cost: ${solution.totalCost.toFixed(2)}</span></div>}
+        </section>
+        <section id="results-section" className="card results-card">
+          <div className="section-heading"><span>5</span><div><h2>Optimization result</h2><p className="muted">Solved asynchronously with highs.js/WebAssembly. Decision variables are one daily 100g-unit amount per food.</p></div></div>
+          {foods.length === 0 && <p className="empty-state">Add foods to build a feasible nutrition LP.</p>}
+          {solving && <p className="muted">Solving with highs.js...</p>}
+          {foods.length > 0 && !solving && !solution.feasible && <p className="alert">No feasible combination satisfies these nutrient bounds. Relax constraints, category shares, or add more foods. Solver status: {solution.rawStatus}{solution.infeasibilityReason === 'category-shares' ? ' Category share limits are a likely cause.' : ''}</p>}
+          {solution.feasible && <div className="chart-card"><ChartTabs chartType={chartType} setChartType={setChartType} />{chartType === 'servings' && <ServingsTable data={selectedData} />}{chartType === 'categories' && <CategoryStackedChart data={categoryData} foodKeys={categoryFoodKeys} foods={solution.selectedFoods} />}{chartType === 'macros' && <MacroChart data={macroData} />}{chartType === 'radar' && <RadarConstraintsChart data={radarData} />}</div>}
+        </section>
+      </div>
+      </div>
     </main>
   );
 }
