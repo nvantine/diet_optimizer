@@ -206,5 +206,5 @@ export function formatNutrientValue(key, value) {
   if (!nutrient || value == null || !Number.isFinite(Number(value))) return 'No data';
   const parsed = Number(value);
   const rounded = Math.abs(parsed) >= 100 ? Math.round(parsed) : Math.round(parsed * 1000) / 1000;
-  return `${rounded} ${nutrient.unit}`;
+  return `${nutrient.label}: ${rounded} ${nutrient.unit}`;
 }

@@ -377,6 +377,32 @@ h2 {
   padding: 0.25rem 0.55rem;
 }
 
+.nutrient-chip-calories { background: rgba(148, 163, 184, 0.14) !important; border-color: rgba(148, 163, 184, 0.32) !important; color: #cbd5e1 !important; }
+.nutrient-chip-protein { background: rgba(96, 165, 250, 0.16) !important; border-color: rgba(96, 165, 250, 0.36) !important; color: #bfdbfe !important; }
+.nutrient-chip-fat { background: rgba(251, 146, 60, 0.16) !important; border-color: rgba(251, 146, 60, 0.36) !important; color: #fed7aa !important; }
+.nutrient-chip-carbs { background: rgba(34, 197, 94, 0.15) !important; border-color: rgba(34, 197, 94, 0.34) !important; color: #bbf7d0 !important; }
+.nutrient-chip-fiber { background: rgba(20, 184, 166, 0.16) !important; border-color: rgba(20, 184, 166, 0.36) !important; color: #99f6e4 !important; }
+.nutrient-chip-sodium { background: rgba(168, 85, 247, 0.16) !important; border-color: rgba(168, 85, 247, 0.36) !important; color: #e9d5ff !important; }
+
+.cost-warning {
+  background: rgba(245, 158, 11, 0.11);
+  border: 1px solid rgba(245, 158, 11, 0.32);
+  border-radius: 1rem;
+  color: #fde68a;
+  padding: 0.85rem 1rem;
+}
+
+.chart-tooltip {
+  background: #11111b;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+}
+
+.chart-tooltip p {
+  margin-bottom: 0.25rem;
+}
+
 .already-added {
   background: rgba(34, 197, 94, 0.12);
   border-color: rgba(34, 197, 94, 0.28);
@@ -408,6 +434,17 @@ th {
   color: var(--muted);
   font-size: 0.8rem;
   text-transform: uppercase;
+}
+
+.table-sort {
+  background: transparent;
+  color: var(--muted);
+  padding: 0;
+  text-align: left;
+}
+
+.table-sort:hover:not(:disabled) {
+  transform: none;
 }
 
 fieldset {

@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { estimateCostPer100g } from '../lib/costEstimates';
+import { FOOD_CATEGORIES, FOOD_CATEGORY_LABELS } from '../lib/foodCategory';
 import { NUTRIENTS } from '../lib/nutrientMap';
+import { estimateMaxServing } from '../lib/servingCaps';
 
 function emptyFood() {
   return {
     name: '',
+    category: 'other',
     cost: 0,
-    servingBounds: { min: 0, max: 10 },
+    servingBounds: { min: 0, max: estimateMaxServing('', 'other') },
     nutrients: Object.fromEntries(NUTRIENTS.map(nutrient => [nutrient.key, 0])),
   };
 }
@@ -18,7 +20,20 @@ export default function ManualFoodForm({ onAdd }) {
 
   function updateName(event) {
     const name = event.target.value;
-    setFood(current => ({ ...current, name, cost: estimateCostPer100g(name) }));
+    setFood(current => ({
+      ...current,
+      name,
+      servingBounds: { ...current.servingBounds, max: estimateMaxServing(name, current.category) },
+    }));
+  }
+
+  function updateCategory(event) {
+    const category = event.target.value;
+    setFood(current => ({
+      ...current,
+      category,
+      servingBounds: { ...current.servingBounds, max: estimateMaxServing(current.name, category) },
+    }));
   }
 
   function updateCost(event) {
@@ -70,6 +85,12 @@ export default function ManualFoodForm({ onAdd }) {
           Food name
           <input value={food.name} onChange={updateName} placeholder="Egg, spinach, lentils..." required />
         </label>
+        <label>
+          Category
+          <select value={food.category} onChange={updateCategory} required>
+            {FOOD_CATEGORIES.map(category => <option key={category} value={category}>{FOOD_CATEGORY_LABELS[category]}</option>)}
+          </select>
+        </label>
         {MANUAL_NUTRIENTS.map(key => {
           const nutrient = NUTRIENTS.find(item => item.key === key);
           return (
@@ -80,7 +101,7 @@ export default function ManualFoodForm({ onAdd }) {
           );
         })}
         <label>
-          Cost ($ per 100g, editable estimate)
+          Cost ($ per 100g, placeholder — edit manually)
           <input type="number" min="0" step="0.01" value={food.cost} onChange={updateCost} />
         </label>
         <label>

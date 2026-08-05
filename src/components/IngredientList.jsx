@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatNutrientValue } from '../lib/nutrientMap';
 
 const SUMMARY_KEYS = ['calories', 'protein', 'fat', 'carbs', 'fiber', 'sugars', 'calcium', 'iron', 'sodium'];
 
 export default function IngredientList({ foods, setFoods }) {
+  const lastValidValues = useRef(new Map());
   const [expandedIds, setExpandedIds] = useState(() => new Set(foods.length <= 10 ? foods.map(food => food.id) : []));
 
   useEffect(() => {
@@ -12,6 +13,14 @@ export default function IngredientList({ foods, setFoods }) {
       if (foods.length <= 10) return currentIds;
       return new Set([...current].filter(id => currentIds.has(id)));
     });
+  }, [foods]);
+
+  useEffect(() => {
+    for (const food of foods) {
+      rememberValidValue(lastValidValues.current, food.id, 'cost', food.cost);
+      rememberValidValue(lastValidValues.current, food.id, 'min', food.servingBounds?.min);
+      rememberValidValue(lastValidValues.current, food.id, 'max', food.servingBounds?.max ?? food.maxServing);
+    }
   }, [foods]);
 
   const allExpanded = foods.length > 0 && expandedIds.size === foods.length;
@@ -33,6 +42,10 @@ export default function IngredientList({ foods, setFoods }) {
     setFoods(foods.map(food => (food.id === id ? { ...food, cost: value === '' ? '' : Number(value) } : food)));
   }
 
+  function restoreCostOnBlur(id) {
+    setFoods(foods.map(food => (food.id === id && !isValidNumber(food.cost) ? { ...food, cost: getLastValidValue(lastValidValues.current, id, 'cost', 0) } : food)));
+  }
+
   function updateServingBound(id, bound, value) {
     setFoods(foods.map(food => {
       if (food.id !== id) return food;
@@ -45,6 +58,14 @@ export default function IngredientList({ foods, setFoods }) {
           [bound]: value === '' ? '' : Number(value),
         },
       };
+    }));
+  }
+
+  function restoreServingBoundOnBlur(id, bound) {
+    setFoods(foods.map(food => {
+      if (food.id !== id || isValidNumber(food.servingBounds?.[bound])) return food;
+      const fallback = getLastValidValue(lastValidValues.current, id, bound, bound === 'min' ? 0 : food.maxServing ?? 10);
+      return { ...food, servingBounds: { min: 0, max: fallback, ...(food.servingBounds || {}), [bound]: fallback } };
     }));
   }
 
@@ -91,7 +112,7 @@ export default function IngredientList({ foods, setFoods }) {
                   <p className="muted">Nutrient values shown are per 100g of this food, not per serving or daily totals.</p>
                   <div className="nutrient-chips">
                     {SUMMARY_KEYS.map(key => (
-                      <span key={key}>{formatNutrientValue(key, food.nutrients?.[key])}</span>
+                      <span className={simpleMacroChipClass(key)} key={key}>{formatNutrientValue(key, food.nutrients?.[key])}</span>
                     ))}
                   </div>
                   <div className="grid form-grid">
@@ -104,6 +125,7 @@ export default function IngredientList({ foods, setFoods }) {
                         step="0.01"
                         value={food.cost ?? 0}
                         onChange={event => updateCost(food.id, event.target.value)}
+                        onBlur={() => restoreCostOnBlur(food.id)}
                       />
                     </label>
                     <label>
@@ -115,6 +137,7 @@ export default function IngredientList({ foods, setFoods }) {
                         step="0.25"
                         value={food.servingBounds?.min ?? 0}
                         onChange={event => updateServingBound(food.id, 'min', event.target.value)}
+                        onBlur={() => restoreServingBoundOnBlur(food.id, 'min')}
                       />
                     </label>
                     <label>
@@ -126,6 +149,7 @@ export default function IngredientList({ foods, setFoods }) {
                         step="0.25"
                         value={food.servingBounds?.max ?? food.maxServing ?? 10}
                         onChange={event => updateServingBound(food.id, 'max', event.target.value)}
+                        onBlur={() => restoreServingBoundOnBlur(food.id, 'max')}
                       />
                     </label>
                   </div>
@@ -141,4 +165,20 @@ export default function IngredientList({ foods, setFoods }) {
 
 function formatBound(value) {
   return Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }) : value;
+}
+
+function isValidNumber(value) {
+  return value !== '' && value != null && Number.isFinite(Number(value));
+}
+
+function rememberValidValue(store, id, field, value) {
+  if (isValidNumber(value)) store.set(`${id}:${field}`, Number(value));
+}
+
+function getLastValidValue(store, id, field, fallback) {
+  return store.get(`${id}:${field}`) ?? fallback;
+}
+
+function simpleMacroChipClass(key) {
+  return ['calories', 'protein', 'fat', 'carbs', 'fiber', 'sodium'].includes(key) ? `nutrient-chip-${key}` : '';
 }

@@ -54,25 +54,18 @@ describe('DietOptimizer', () => {
     expect(IngredientSearch).toHaveBeenCalledWith(expect.objectContaining({ existingIds: expect.any(Set) }), undefined);
   });
 
-  it('starts empty without saved foods and can reset to the whole-foods preset with costs and caps', async () => {
-    const user = userEvent.setup();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('starts empty without saved foods and no longer offers a whole-foods preset reset', () => {
     render(<DietOptimizer />);
     expect(screen.getByText(/No foods yet/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Reset to whole-foods preset/i }));
-    expect(screen.getByText(/Chicken breast/i)).toBeInTheDocument();
-    const saved = JSON.parse(localStorage.getItem('diet-optimizer-foods'));
-    expect(saved).toHaveLength(22);
-    expect(saved.find(food => food.name === 'Chicken breast').cost).toBe(0.92);
-    expect(saved.find(food => food.name === 'Olive oil').servingBounds.max).toBe(0.6);
+    expect(screen.queryByRole('button', { name: /Reset to whole-foods preset/i })).not.toBeInTheDocument();
   });
 
   it('generates random Foundation foods with requested count and serving bounds after destructive confirmation', async () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     listRandomFoundationFoods.mockResolvedValue([
-      { id: 'random-1', name: 'Random lentils', dataType: 'Foundation', unit: 'per 100g', cost: 0.4, servingBounds: { min: 0.5, max: 4 }, nutrients: { calories: 120, protein: 9, fat: 1, carbs: 20, fiber: 8, sodium: 3 } },
-      { id: 'random-2', name: 'Random oats', dataType: 'Foundation', unit: 'per 100g', cost: 0.3, servingBounds: { min: 0.5, max: 4 }, nutrients: { calories: 380, protein: 13, fat: 7, carbs: 67, fiber: 10, sodium: 2 } },
+      { id: 'random-1', name: 'Random lentils', category: 'legume', dataType: 'Foundation', unit: 'per 100g', cost: 0, servingBounds: { min: 0.5, max: 4 }, nutrients: { calories: 120, protein: 9, fat: 1, carbs: 20, fiber: 8, sodium: 3 } },
+      { id: 'random-2', name: 'Random oats', category: 'grain', dataType: 'Foundation', unit: 'per 100g', cost: 0, servingBounds: { min: 0.5, max: 4 }, nutrients: { calories: 380, protein: 13, fat: 7, carbs: 67, fiber: 10, sodium: 2 } },
     ]);
 
     render(<DietOptimizer />);
@@ -110,12 +103,15 @@ describe('DietOptimizer', () => {
     expect(screen.queryByText(/Chicken breast/i)).not.toBeInTheDocument();
   });
 
-  it('renders chart tabs and shadow-price explanations after solving', async () => {
+  it('renders result table, category chart tab, and shadow-price explanations after solving', async () => {
     localStorage.setItem('diet-optimizer-foods', JSON.stringify([
-      { id: 'protein-food', name: 'Protein food', dataType: 'Manual', unit: 'per 100g', cost: 2, servingBounds: { min: 0, max: 10 }, nutrients: { calories: 100, protein: 20, fat: 1, carbs: 1, fiber: 5, sodium: 1 } },
+      { id: 'protein-food', name: 'Protein food', category: 'protein', dataType: 'Manual', unit: 'per 100g', cost: 0, servingBounds: { min: 0, max: 10 }, nutrients: { calories: 100, protein: 20, fat: 1, carbs: 1, fiber: 5, sodium: 1 } },
     ]));
     render(<DietOptimizer />);
     await waitFor(() => expect(screen.getByText(/Shadow prices/i)).toBeInTheDocument());
+    expect(screen.getByText(/Cost is currently a placeholder/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Category calories/i })).toBeInTheDocument();
+    expect(screen.getByText(/Calories contributed/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Macro donut/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Constraint radar/i })).toBeInTheDocument();
     expect(screen.getByText(/The shadow price on a constraint tells you/i)).toBeInTheDocument();

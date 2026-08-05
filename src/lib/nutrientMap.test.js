@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NUTRIENTS, defaultConstraints, mapUsdaNutrients, NUTRIENT_TIERS } from './nutrientMap';
+import { NUTRIENTS, defaultConstraints, formatNutrientValue, mapUsdaNutrients, NUTRIENT_TIERS } from './nutrientMap';
 
 describe('nutrient map tiers', () => {
   it('assigns every nutrient to simple, medium, or all', () => {
@@ -24,6 +24,11 @@ describe('nutrient map tiers', () => {
       iodine: 150,
       molybdenum: 45,
     }));
+  });
+
+  it('includes nutrient labels in formatted values so same-unit pills are distinguishable', () => {
+    expect(formatNutrientValue('protein', 12)).toBe('Protein: 12 g');
+    expect(formatNutrientValue('fat', 12)).toBe('Total fat: 12 g');
   });
 
   it('uses DRI-inspired defaults for newly tracked medium-tier nutrients when medium constraints are active', () => {

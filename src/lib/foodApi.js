@@ -1,4 +1,5 @@
-import { estimateCostPer100g } from './costEstimates';
+import { normalizeFoodCategory } from './foodCategory';
+import { estimateMaxServing } from './servingCaps';
 import { mapUsdaNutrients } from './nutrientMap';
 
 const USDA_SEARCH_URL = 'https://api.nal.usda.gov/fdc/v1/foods/search';
@@ -107,14 +108,18 @@ function toNumber(value, fallback) {
 
 export function mapUsdaFood(food, overrides = {}) {
   const name = food.description || food.lowercaseDescription || 'Unnamed food';
+  const category = normalizeFoodCategory(food.foodCategory || food.foodCategoryDescription, name);
   return {
     id: String(food.fdcId),
     name,
     brand: food.brandOwner || food.brandName || '',
     dataType: food.dataType || 'USDA',
     unit: 'per 100g',
-    cost: estimateCostPer100g(name, food.foodCategory || food.foodCategoryDescription),
-    servingBounds: overrides.servingBounds || { min: 0, max: 10 },
+    category,
+    // Cost estimates remain in costEstimates.js, but new foods default to $0
+    // until real price data is wired in. Users can edit per-food costs manually.
+    cost: 0,
+    servingBounds: overrides.servingBounds || { min: 0, max: estimateMaxServing(name, category) },
     // TODO: Some foods are naturally discrete (for example, one egg), but the
     // optimizer currently treats all foods as continuous 100g units. Revisit
     // later with an optional MILP/integer-serving mode if discrete serving

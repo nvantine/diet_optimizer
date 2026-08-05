@@ -40,7 +40,7 @@ describe('IngredientList', () => {
 
     expect(screen.getByText('1 food')).toBeInTheDocument();
     expect(screen.getByText(/0.25–2.5 × 100g units/i)).toBeInTheDocument();
-    expect(screen.getByText(/100 kcal/i)).toBeInTheDocument();
+    expect(screen.getByText(/Energy: 100 kcal/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Collapse all/i })).toBeInTheDocument();
   });
 
@@ -49,15 +49,15 @@ describe('IngredientList', () => {
     render(<IngredientList foods={makeFoods(12)} setFoods={vi.fn()} />);
 
     expect(screen.getByText('12 foods')).toBeInTheDocument();
-    expect(screen.queryAllByText(/100 kcal/i)).toHaveLength(0);
+    expect(screen.queryAllByText(/Energy: 100 kcal/i)).toHaveLength(0);
     expect(screen.getByRole('link', { name: /Jump to Goals/i })).toHaveAttribute('href', '#goals-section');
     expect(screen.getByRole('link', { name: /Jump to Results/i })).toHaveAttribute('href', '#results-section');
 
     await user.click(screen.getByRole('button', { name: /Expand all/i }));
-    expect(screen.getAllByText(/100 kcal/i)).toHaveLength(12);
+    expect(screen.getAllByText(/Energy: 100 kcal/i)).toHaveLength(12);
 
     await user.click(screen.getByRole('button', { name: /Collapse all/i }));
-    expect(screen.queryAllByText(/100 kcal/i)).toHaveLength(0);
+    expect(screen.queryAllByText(/Energy: 100 kcal/i)).toHaveLength(0);
   });
 
   it('toggles an individual ingredient row without changing the search-results pagination pattern elsewhere', async () => {
@@ -65,9 +65,24 @@ describe('IngredientList', () => {
     render(<IngredientList foods={makeFoods(12)} setFoods={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: /Expand Food 0 details/i }));
-    expect(screen.getByText(/100 kcal/i)).toBeInTheDocument();
+    expect(screen.getByText(/Energy: 100 kcal/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Collapse Food 0 details/i }));
-    expect(screen.queryByText(/100 kcal/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Energy: 100 kcal/i)).not.toBeInTheDocument();
+  });
+
+  it('restores cleared cost and serving fields on blur without changing sibling fields', async () => {
+    const user = userEvent.setup();
+    const setFoods = vi.fn();
+    render(<IngredientList foods={makeFoods(1)} setFoods={setFoods} />);
+
+    await user.clear(screen.getByLabelText(/Cost for Food 0/i));
+    await user.tab();
+    expect(setFoods).toHaveBeenCalled();
+
+    setFoods.mockClear();
+    await user.clear(screen.getByLabelText(/Minimum servings for Food 0/i));
+    await user.tab();
+    expect(setFoods).toHaveBeenCalled();
   });
 });

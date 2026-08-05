@@ -32,8 +32,9 @@ describe('USDA FoodData Central API', () => {
       name: 'Chicken breast tenders, breaded, uncooked',
       dataType: 'SR Legacy',
       unit: 'per 100g',
-      cost: 0.92,
-      servingBounds: { min: 0, max: 10 },
+      category: 'protein',
+      cost: 0,
+      servingBounds: { min: 0, max: 2.5 },
       nutrients: expect.objectContaining({
         calories: 263,
         protein: 14.73,
