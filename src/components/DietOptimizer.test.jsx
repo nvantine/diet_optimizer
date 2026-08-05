@@ -96,11 +96,13 @@ describe('DietOptimizer', () => {
     expect(screen.getByText(/Saved lentils/i)).toBeInTheDocument();
   });
 
-  it('loads saved foods from localStorage instead of the preset on page load', () => {
+  it('loads saved foods into the right side of the split ingredients section', () => {
     localStorage.setItem('diet-optimizer-foods', JSON.stringify([{ id: 'saved-food', name: 'Saved lentils', dataType: 'Manual', unit: 'per 100g', cost: 0.25, servingBounds: { min: 0, max: 1 }, nutrients: { calories: 120, protein: 9 } }]));
     render(<DietOptimizer />);
     expect(screen.getByText(/Saved lentils/i)).toBeInTheDocument();
     expect(screen.queryByText(/Chicken breast/i)).not.toBeInTheDocument();
+    expect(document.querySelector('.ingredients-split .ingredient-controls')).toBeTruthy();
+    expect(document.querySelector('.ingredients-split .ingredient-list-panel')).toBeTruthy();
   });
 
   it('renders result table, category chart tab, and removes the shadow-price display after solving', async () => {

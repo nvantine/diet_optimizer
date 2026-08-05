@@ -124,35 +124,39 @@ export default function DietOptimizer() {
       </section>
       <section id="ingredients-section" className="card ingredients-card">
         <div className="section-heading"><span>1</span><div><h2>Build your food list</h2><p className="muted">Search FoodData Central with a local browser key, or add editable per-100g nutrient and cost data manually.</p></div></div>
-        <ApiKeySettings apiKey={apiKey} setApiKey={setApiKey} />
-        <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
-        {/* ManualFoodForm is disabled pending a UI decision, not abandoned.
-            Keep ManualFoodForm.jsx and its tests intact for possible reuse. */}
-        {/* <ManualFoodForm onAdd={addFood} /> */}
-        <section className="random-food-card" aria-labelledby="random-foundation-heading">
-          <div>
-            <div className="section-kicker">Random test data</div>
-            <h3 id="random-foundation-heading">Random Foundation foods generator</h3>
-            <p className="muted">Fetches USDA Foundation Food pages, samples them randomly, and replaces the current list with editable 100g-unit bounds.</p>
+        <div className="ingredients-split">
+          <div className="ingredient-controls">
+            <ApiKeySettings apiKey={apiKey} setApiKey={setApiKey} />
+            <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
+            {/* ManualFoodForm is disabled pending a UI decision, not abandoned.
+                Keep ManualFoodForm.jsx and its tests intact for possible reuse. */}
+            {/* <ManualFoodForm onAdd={addFood} /> */}
+            <section className="random-food-card" aria-labelledby="random-foundation-heading">
+              <div>
+                <div className="section-kicker">Random test data</div>
+                <h3 id="random-foundation-heading">Random Foundation foods generator</h3>
+                <p className="muted">Fetches USDA Foundation Food pages, samples them randomly, and replaces the current list with editable 100g-unit bounds.</p>
+              </div>
+              <div className="grid form-grid">
+                <label>
+                  How many foods?
+                  <input type="number" min="1" max="100" step="1" value={randomSettings.count} onChange={event => updateRandomSetting('count', event.target.value)} />
+                </label>
+                <label>
+                  Default min serving
+                  <input type="number" min="0" step="0.25" value={randomSettings.min} onChange={event => updateRandomSetting('min', event.target.value)} />
+                </label>
+                <label>
+                  Default max serving
+                  <input type="number" min="0" step="0.25" value={randomSettings.max} onChange={event => updateRandomSetting('max', event.target.value)} />
+                </label>
+              </div>
+              <button type="button" onClick={generateRandomFoods} disabled={generatingRandomFoods}>{generatingRandomFoods ? 'Generating...' : 'Generate random foods'}</button>
+              {randomMessage && <p className={randomMessage.startsWith('Generated') ? 'muted' : 'alert'}>{randomMessage}</p>}
+            </section>
           </div>
-          <div className="grid form-grid">
-            <label>
-              How many foods?
-              <input type="number" min="1" max="100" step="1" value={randomSettings.count} onChange={event => updateRandomSetting('count', event.target.value)} />
-            </label>
-            <label>
-              Default min serving
-              <input type="number" min="0" step="0.25" value={randomSettings.min} onChange={event => updateRandomSetting('min', event.target.value)} />
-            </label>
-            <label>
-              Default max serving
-              <input type="number" min="0" step="0.25" value={randomSettings.max} onChange={event => updateRandomSetting('max', event.target.value)} />
-            </label>
-          </div>
-          <button type="button" onClick={generateRandomFoods} disabled={generatingRandomFoods}>{generatingRandomFoods ? 'Generating...' : 'Generate random foods'}</button>
-          {randomMessage && <p className={randomMessage.startsWith('Generated') ? 'muted' : 'alert'}>{randomMessage}</p>}
-        </section>
-        <IngredientList foods={foods} setFoods={setFoods} />
+          <IngredientList foods={foods} setFoods={setFoods} />
+        </div>
       </section>
       <div className="goals-share-layout">
         <CategoryShareBar foods={foods} shares={normalizedCategoryShares} onChange={setCategoryShares} calorieTarget={calorieTarget} />

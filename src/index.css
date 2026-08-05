@@ -165,9 +165,18 @@ h2 {
 }
 
 .ingredients-card {
-  max-width: 880px;
+  max-width: 1220px;
   margin-left: auto;
   margin-right: auto;
+}
+
+.ingredients-split {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.ingredient-controls {
+  min-width: 0;
 }
 
 .goals-share-layout,
@@ -762,9 +771,14 @@ legend {
     color: var(--accent-strong);
   }
 
+  .ingredients-split {
+    align-items: start;
+    grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 1.1fr);
+  }
+
   .goals-share-layout {
     align-items: start;
-    grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 0.26fr) minmax(0, 1fr);
   }
 
   .objective-results-layout {
