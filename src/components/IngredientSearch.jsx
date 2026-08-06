@@ -6,16 +6,17 @@ const DEBOUNCE_MS = 300;
 const INITIAL_RESULT_COUNT = 12;
 const TOAST_MS = 2000;
 
-export default function IngredientSearch({ apiKey, existingIds = new Set(), onAdd }) {
+export default function IngredientSearch({ apiKey, existingIds = new Set(), onAdd, dataType: controlledDataType, onDataTypeChange, showDataTypeFilter = true }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [visibleCount, setVisibleCount] = useState(INITIAL_RESULT_COUNT);
-  const [dataType, setDataType] = useState(USDA_DATA_TYPES.foundationOnly);
+  const [uncontrolledDataType, setUncontrolledDataType] = useState(USDA_DATA_TYPES.foundationOnly);
   const [, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [toast, setToast] = useState(null);
   const searchCounter = useRef(0);
   const toastTimer = useRef(null);
+  const dataType = controlledDataType ?? uncontrolledDataType;
 
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -72,6 +73,11 @@ export default function IngredientSearch({ apiKey, existingIds = new Set(), onAd
     toastTimer.current = setTimeout(() => setToast(null), TOAST_MS);
   }
 
+  function changeDataType(value) {
+    if (onDataTypeChange) onDataTypeChange(value);
+    else setUncontrolledDataType(value);
+  }
+
   return (
     <div className="search-card">
       {toast && <div className="toast" role="status">{toast}</div>}
@@ -84,21 +90,7 @@ export default function IngredientSearch({ apiKey, existingIds = new Set(), onAd
           placeholder="Search USDA Foundation foods: eggs, oats, spinach..."
         />
       </form>
-      <label className="data-type-filter" htmlFor="usda-data-type">
-        <span>USDA data type</span>
-        <select
-          id="usda-data-type"
-          value={dataType}
-          onChange={event => setDataType(event.target.value)}
-        >
-          <option value={USDA_DATA_TYPES.foundationOnly}>Foundation only</option>
-          <option value={USDA_DATA_TYPES.foundationAndSrLegacy}>Foundation + SR Legacy</option>
-        </select>
-      </label>
-      <p className="muted">
-        Search runs about 300ms after you stop typing to avoid hammering USDA's API.
-        Foundation only is the default. Switching to SR Legacy expands coverage, but data may be older or less detailed on some micronutrients.
-      </p>
+      {showDataTypeFilter && <DataTypeFilter dataType={dataType} onChange={changeDataType} />}
 
       {message && <p className="alert">{message}</p>}
 
@@ -135,5 +127,21 @@ export default function IngredientSearch({ apiKey, existingIds = new Set(), onAd
         </div>
       )}
     </div>
+  );
+}
+
+export function DataTypeFilter({ dataType, onChange }) {
+  return (
+    <label className="data-type-filter" htmlFor="usda-data-type">
+      <span>USDA data type</span>
+      <select
+        id="usda-data-type"
+        value={dataType}
+        onChange={event => onChange(event.target.value)}
+      >
+        <option value={USDA_DATA_TYPES.foundationOnly}>Foundation only</option>
+        <option value={USDA_DATA_TYPES.foundationAndSrLegacy}>Foundation + SR Legacy</option>
+      </select>
+    </label>
   );
 }

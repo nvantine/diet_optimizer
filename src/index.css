@@ -349,7 +349,13 @@ h2 {
 }
 
 .ingredient-list-actions {
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.ingredient-list-actions .data-type-filter {
+  margin-top: 0;
+  min-width: min(100%, 18rem);
 }
 
 .toolbar-link {

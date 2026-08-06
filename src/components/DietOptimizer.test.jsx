@@ -11,7 +11,18 @@ vi.mock('../lib/foodApi', async importOriginal => {
   return { ...actual, listRandomFoundationFoods: vi.fn() };
 });
 
-vi.mock('./IngredientSearch', () => ({ default: vi.fn(() => null) }));
+vi.mock('./IngredientSearch', () => ({
+  default: vi.fn(() => null),
+  DataTypeFilter: vi.fn(({ dataType, onChange }) => (
+    <label className="data-type-filter" htmlFor="usda-data-type">
+      <span>USDA data type</span>
+      <select id="usda-data-type" value={dataType} onChange={event => onChange(event.target.value)}>
+        <option value="Foundation">Foundation only</option>
+        <option value="Foundation,SR Legacy">Foundation + SR Legacy</option>
+      </select>
+    </label>
+  )),
+}));
 
 describe('DietOptimizer', () => {
   beforeEach(() => {
@@ -68,6 +79,19 @@ describe('DietOptimizer', () => {
     expect(panel.querySelector('[data-testid="mock-search"]')).toBeTruthy();
     expect(panel.querySelector('[data-testid="mock-search"]').compareDocumentPosition(panel.querySelector('.food-grid')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('1 ingredient')).toBeInTheDocument();
+  });
+
+  it('aligns the USDA data type selector with the ingredient count and Expand all action', () => {
+    localStorage.setItem('diet-optimizer-foods', JSON.stringify([{ id: 'saved-food', name: 'Saved lentils', dataType: 'Manual', unit: 'per 100g', cost: 0.25, servingBounds: { min: 0, max: 1 }, nutrients: { calories: 120, protein: 9 } }]));
+    IngredientSearch.mockImplementation(() => <div data-testid="mock-search">Mock search</div>);
+
+    render(<DietOptimizer />);
+
+    const actions = document.querySelector('.ingredient-list-actions');
+    expect(actions).toBeTruthy();
+    expect(actions.querySelector('.data-type-filter')).toBeTruthy();
+    expect(actions).toHaveTextContent(/1 ingredient/i);
+    expect(actions).toHaveTextContent(/Expand all|Collapse all/i);
   });
 
   it('keeps the nested ingredient scroller from overflowing the rounded ingredients card', () => {

@@ -3,7 +3,7 @@ import { formatNutrientValue } from '../lib/nutrientMap';
 
 const SUMMARY_KEYS = ['calories', 'protein', 'fat', 'carbs', 'fiber', 'sugars', 'calcium', 'iron', 'sodium'];
 
-export default function IngredientList({ foods, setFoods }) {
+export default function IngredientList({ foods, setFoods, toolbarStart = null }) {
   const lastValidValues = useRef(new Map());
   const [expandedIds, setExpandedIds] = useState(() => new Set(foods.length <= 10 ? foods.map(food => food.id) : []));
 
@@ -80,10 +80,11 @@ export default function IngredientList({ foods, setFoods }) {
   return (
     <>
       <div className="ingredient-list-actions">
+        {toolbarStart}
         <div className="ingredient-list-heading">
               <span className="ingredient-count">{foods.length} {foods.length === 1 ? 'ingredient' : 'ingredients'}</span>
+              <button type="button" className="toolbar-link" onClick={toggleAll} aria-label={`${allExpanded ? 'Collapse' : 'Expand'} all ingredients`}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>
         </div>
-        <button type="button" className="toolbar-link" onClick={toggleAll} aria-label={`${allExpanded ? 'Collapse' : 'Expand'} all ingredients`}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>
       </div>
       <div className="food-grid">
         {foods.map(food => {

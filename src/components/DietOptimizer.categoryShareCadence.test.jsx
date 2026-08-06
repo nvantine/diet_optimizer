@@ -9,7 +9,18 @@ vi.mock('../lib/foodApi', async importOriginal => {
   return { ...actual, listRandomFoundationFoods: vi.fn() };
 });
 
-vi.mock('./IngredientSearch', () => ({ default: vi.fn(() => null) }));
+vi.mock('./IngredientSearch', () => ({
+  default: vi.fn(() => null),
+  DataTypeFilter: vi.fn(({ dataType, onChange }) => (
+    <label className="data-type-filter" htmlFor="usda-data-type">
+      <span>USDA data type</span>
+      <select id="usda-data-type" value={dataType} onChange={event => onChange(event.target.value)}>
+        <option value="Foundation">Foundation only</option>
+        <option value="Foundation,SR Legacy">Foundation + SR Legacy</option>
+      </select>
+    </label>
+  )),
+}));
 
 vi.mock('../lib/solver', async importOriginal => {
   const actual = await importOriginal();

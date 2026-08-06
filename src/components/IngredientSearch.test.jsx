@@ -46,7 +46,7 @@ describe('IngredientSearch', () => {
     expect(screen.queryByRole('button', { name: /Live search|Searching/i })).not.toBeInTheDocument();
   });
 
-  it('lets the user include SR Legacy foods and explains that tradeoff', async () => {
+  it('lets the user include SR Legacy foods without the old long explanatory phrase', async () => {
     vi.useFakeTimers();
     searchFoods.mockResolvedValue([food(1, 'SR Legacy')]);
 
@@ -57,8 +57,15 @@ describe('IngredientSearch', () => {
     await act(async () => vi.advanceTimersByTimeAsync(300));
 
     expect(searchFoods).toHaveBeenCalledWith('oats', 'key', 'Foundation,SR Legacy');
-    expect(screen.getByText(/expands coverage/i)).toBeInTheDocument();
-    expect(screen.getByText(/older or less detailed/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/USDA data type/i)).toHaveValue('Foundation,SR Legacy');
+    expect(screen.queryByText(/expands coverage/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/older or less detailed/i)).not.toBeInTheDocument();
+  });
+
+  it('can hide its data type selector so the parent layout can align it with list actions', () => {
+    render(<IngredientSearch apiKey="key" onAdd={vi.fn()} showDataTypeFilter={false} />);
+
+    expect(screen.queryByLabelText(/USDA data type/i)).not.toBeInTheDocument();
   });
 
   it('shows a small visual gap between result food names and their data type pill', async () => {

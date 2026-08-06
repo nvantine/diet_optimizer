@@ -66,7 +66,7 @@ describe('GoalsPanel nutrient tiers', () => {
     await user.type(screen.getByLabelText(/height/i), '178');
     await user.clear(screen.getByLabelText(/age/i));
     await user.type(screen.getByLabelText(/age/i), '25');
-    await user.click(screen.getByRole('button', { name: /apply preset/i }));
+    await user.click(screen.getByRole('button', { name: /^apply$/i }));
 
     expect(setConstraints).toHaveBeenCalledTimes(1);
   });
@@ -85,7 +85,7 @@ describe('GoalsPanel nutrient tiers', () => {
     await user.selectOptions(screen.getByLabelText(/sex/i), 'female');
     await user.clear(screen.getByLabelText(/weight/i));
     await user.type(screen.getByLabelText(/weight/i), '57');
-    await user.click(screen.getByRole('button', { name: /apply preset/i }));
+    await user.click(screen.getByRole('button', { name: /^apply$/i }));
 
     expect(setConstraints).toHaveBeenCalledTimes(1);
   });

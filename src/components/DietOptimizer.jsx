@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, Cell, Legend, Pie, PieChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { FOOD_CATEGORY_LABELS } from '../lib/foodCategory';
 import { defaultConstraints, formatNutrientValue, NUTRIENTS, NUTRIENT_BY_KEY, NUTRIENT_TIERS, nutrientIsVisibleInTier } from '../lib/nutrientMap';
-import { listRandomFoundationFoods } from '../lib/foodApi';
+import { listRandomFoundationFoods, USDA_DATA_TYPES } from '../lib/foodApi';
 import { buildAndSolve } from '../lib/solver';
 import ApiKeySettings from './ApiKeySettings';
 import CategoryShareBar from './CategoryShareBar';
 import { defaultSharesForCategories, normalizeShares } from '../lib/categoryShares';
 import GoalsPanel from './GoalsPanel';
 import IngredientList from './IngredientList';
-import IngredientSearch from './IngredientSearch';
+import IngredientSearch, { DataTypeFilter } from './IngredientSearch';
 // ManualFoodForm is disabled pending a UI decision, not abandoned.
 // import ManualFoodForm from './ManualFoodForm';
 
@@ -28,6 +28,7 @@ export default function DietOptimizer() {
   const [randomSettings, setRandomSettings] = useState({ count: 30, min: 0, max: 10 });
   const [randomMessage, setRandomMessage] = useState(null);
   const [generatingRandomFoods, setGeneratingRandomFoods] = useState(false);
+  const [searchDataType, setSearchDataType] = useState(USDA_DATA_TYPES.foundationOnly);
   const [chartType, setChartType] = useState('servings');
   const [categoryShares, setCategoryShares] = useState({});
   const [costToast, setCostToast] = useState(null);
@@ -155,8 +156,8 @@ export default function DietOptimizer() {
             </section>
           </div>
           <div className="ingredient-list-panel">
-            <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
-            <IngredientList foods={foods} setFoods={setFoods} />
+            <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} dataType={searchDataType} onDataTypeChange={setSearchDataType} showDataTypeFilter={false} />
+            <IngredientList foods={foods} setFoods={setFoods} toolbarStart={<DataTypeFilter dataType={searchDataType} onChange={setSearchDataType} />} />
           </div>
         </div>
       </section>
