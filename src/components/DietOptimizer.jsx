@@ -156,19 +156,16 @@ export default function DietOptimizer() {
           </div>
           <div className="ingredient-list-panel">
             <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
-            <div className="ingredient-list-heading">
-              <span className="ingredient-count">{foods.length} {foods.length === 1 ? 'ingredient' : 'ingredients'}</span>
-            </div>
             <IngredientList foods={foods} setFoods={setFoods} />
           </div>
         </div>
       </section>
       <div className="goals-share-layout">
-        <CategoryShareBar foods={foods} shares={normalizedCategoryShares} onChange={setCategoryShares} calorieTarget={calorieTarget} />
         <section id="goals-section" className="card form-card goals-card">
           <div className="section-heading"><span>2</span><div><h2>Set min/max constraints</h2><p className="muted">Every visible tracked nutrient can have a daily lower bound, upper bound, or both. Blank means inactive.</p></div></div>
           <GoalsPanel constraints={constraints} selectedTier={constraintTier} setConstraints={setConstraints} setSelectedTier={setConstraintTier} />
         </section>
+        <CategoryShareBar foods={foods} shares={normalizedCategoryShares} onChange={setCategoryShares} calorieTarget={calorieTarget} />
       </div>
       <div className="objective-results-layout">
         <section className="card objective-card">

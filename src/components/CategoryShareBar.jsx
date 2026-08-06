@@ -44,15 +44,6 @@ export default function CategoryShareBar({ foods, shares, onChange, calorieTarge
       <div className="section-heading"><span>3</span><div><h2>Category calorie shares</h2><p className="muted">Limit each food category to a maximum percentage of daily calories.</p></div></div>
       {disabled && <p className="muted">Set a calorie target in Goals to enable category limits.</p>}
       <div className="category-share-control">
-        <div className="category-share-treemap" aria-label="Category calorie share treemap" aria-disabled={disabled ? 'true' : 'false'}>
-          {categories.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <Treemap data={treemapData} dataKey="value" nameKey="name" stroke="#0f172a" content={<CategoryTreemapTile />} isAnimationActive={false} />
-            </ResponsiveContainer>
-          ) : (
-            <p className="empty-state">Add foods to see category shares.</p>
-          )}
-        </div>
         <div className="category-share-input-list" aria-label="Category max calorie share controls">
           {categories.map((category, index) => (
             <label className="category-share-input-row" key={category} style={{ '--category-color': categoryShareColor(index) }}>
@@ -71,6 +62,15 @@ export default function CategoryShareBar({ foods, shares, onChange, calorieTarge
               <span className="category-share-percent" aria-hidden="true">%</span>
             </label>
           ))}
+        </div>
+        <div className="category-share-treemap" aria-label="Category calorie share treemap" aria-disabled={disabled ? 'true' : 'false'}>
+          {categories.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <Treemap data={treemapData} dataKey="value" nameKey="name" stroke="#0f172a" content={<CategoryTreemapTile />} isAnimationActive={false} />
+            </ResponsiveContainer>
+          ) : (
+            <p className="empty-state">Add foods to see category shares.</p>
+          )}
         </div>
       </div>
     </section>

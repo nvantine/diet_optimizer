@@ -80,6 +80,9 @@ export default function IngredientList({ foods, setFoods }) {
   return (
     <>
       <div className="ingredient-list-actions">
+        <div className="ingredient-list-heading">
+              <span className="ingredient-count">{foods.length} {foods.length === 1 ? 'ingredient' : 'ingredients'}</span>
+        </div>
         <button type="button" className="toolbar-link" onClick={toggleAll} aria-label={`${allExpanded ? 'Collapse' : 'Expand'} all ingredients`}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>
       </div>
       <div className="food-grid">

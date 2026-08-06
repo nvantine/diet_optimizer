@@ -95,10 +95,7 @@ export default function IngredientSearch({ apiKey, existingIds = new Set(), onAd
           <option value={USDA_DATA_TYPES.foundationAndSrLegacy}>Foundation + SR Legacy</option>
         </select>
       </label>
-      <p className="muted">
-        Search runs about 300ms after you stop typing to avoid hammering USDA's API.
-        Foundation only is the default. Switching to SR Legacy expands coverage, but data may be older or less detailed on some micronutrients.
-      </p>
+
 
       {message && <p className="alert">{message}</p>}
 
