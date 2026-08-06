@@ -45,7 +45,7 @@ export default function GoalsPanel({ constraints, selectedTier, setConstraints, 
           <label htmlFor="preset-height">Height (cm)<input id="preset-height" type="number" min="0" step="0.1" value={preset.heightCm} onChange={updatePreset('heightCm')} placeholder="170" /></label>
           <label htmlFor="preset-age">Age (years)<input id="preset-age" type="number" min="0" step="1" value={preset.ageYears} onChange={updatePreset('ageYears')} placeholder="25" /></label>
         </div>
-        <button className="preset-button" type="button" onClick={applyPreset}>Apply</button>
+        <button className="preset-button" type="button" onClick={applyPreset}>Apply preset</button>
       </div>
       <div className="tier-selector" role="radiogroup" aria-label="Nutrient constraint tier">
         {TIER_OPTIONS.map(option => (
