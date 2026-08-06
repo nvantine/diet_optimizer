@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import DietOptimizer from './DietOptimizer';
 import IngredientSearch from './IngredientSearch';
 import { listRandomFoundationFoods } from '../lib/foodApi';
@@ -14,7 +15,8 @@ vi.mock('./IngredientSearch', () => ({ default: vi.fn(() => null) }));
 
 describe('DietOptimizer', () => {
   beforeEach(() => {
-    IngredientSearch.mockClear();
+    IngredientSearch.mockReset();
+    IngredientSearch.mockImplementation(() => null);
     listRandomFoundationFoods.mockReset();
   });
 
@@ -52,6 +54,27 @@ describe('DietOptimizer', () => {
   it('passes selected food ids into IngredientSearch for already-added awareness', () => {
     render(<DietOptimizer />);
     expect(IngredientSearch).toHaveBeenCalledWith(expect.objectContaining({ existingIds: expect.any(Set) }), undefined);
+  });
+
+  it('places live search in the right ingredient-list column above the food list and shows an ingredient count', () => {
+    localStorage.setItem('diet-optimizer-foods', JSON.stringify([{ id: 'saved-food', name: 'Saved lentils', dataType: 'Manual', unit: 'per 100g', cost: 0.25, servingBounds: { min: 0, max: 1 }, nutrients: { calories: 120, protein: 9 } }]));
+    IngredientSearch.mockImplementation(() => <div data-testid="mock-search">Mock search</div>);
+
+    render(<DietOptimizer />);
+
+    const controls = document.querySelector('.ingredient-controls');
+    const panel = document.querySelector('.ingredient-list-panel');
+    expect(controls.querySelector('[data-testid="mock-search"]')).toBeNull();
+    expect(panel.querySelector('[data-testid="mock-search"]')).toBeTruthy();
+    expect(panel.querySelector('[data-testid="mock-search"]').compareDocumentPosition(panel.querySelector('.food-grid')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('1 ingredient')).toBeInTheDocument();
+  });
+
+  it('keeps the nested ingredient scroller from overflowing the rounded ingredients card', () => {
+    const css = readFileSync('src/index.css', 'utf8');
+    for (const selector of ['.ingredients-split', '.ingredient-controls', '.ingredient-list-panel']) {
+      expect(css).toMatch(new RegExp(`${selector.replace('.', '\\.')}` + String.raw`\s*\{[^}]*min-height:\s*0`, 's'));
+    }
   });
 
   it('starts empty without saved foods and no longer offers a whole-foods preset reset', () => {

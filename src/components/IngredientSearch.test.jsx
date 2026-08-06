@@ -43,6 +43,7 @@ describe('IngredientSearch', () => {
     await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(searchFoods).toHaveBeenCalledWith('eggs', 'key', 'Foundation');
     expect(screen.getByText('Eggs')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Live search|Searching/i })).not.toBeInTheDocument();
   });
 
   it('lets the user include SR Legacy foods and explains that tradeoff', async () => {

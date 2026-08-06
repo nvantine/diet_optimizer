@@ -127,7 +127,6 @@ export default function DietOptimizer() {
         <div className="ingredients-split">
           <div className="ingredient-controls">
             <ApiKeySettings apiKey={apiKey} setApiKey={setApiKey} />
-            <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
             {/* ManualFoodForm is disabled pending a UI decision, not abandoned.
                 Keep ManualFoodForm.jsx and its tests intact for possible reuse. */}
             {/* <ManualFoodForm onAdd={addFood} /> */}
@@ -155,7 +154,13 @@ export default function DietOptimizer() {
               {randomMessage && <p className={randomMessage.startsWith('Generated') ? 'muted' : 'alert'}>{randomMessage}</p>}
             </section>
           </div>
-          <IngredientList foods={foods} setFoods={setFoods} />
+          <div className="ingredient-list-panel">
+            <IngredientSearch apiKey={apiKey} existingIds={new Set(foods.map(food => food.id))} onAdd={addFood} />
+            <div className="ingredient-list-heading">
+              <span className="ingredient-count">{foods.length} {foods.length === 1 ? 'ingredient' : 'ingredients'}</span>
+            </div>
+            <IngredientList foods={foods} setFoods={setFoods} />
+          </div>
         </div>
       </section>
       <div className="goals-share-layout">

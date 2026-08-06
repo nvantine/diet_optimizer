@@ -78,12 +78,9 @@ export default function IngredientList({ foods, setFoods }) {
   }
 
   return (
-    <div className="ingredient-list-panel">
-      <div className="ingredient-toolbar" aria-label="Ingredient list toolbar">
-        <strong>{foods.length} {foods.length === 1 ? 'food' : 'foods'}</strong>
-        <button type="button" className="ghost" onClick={toggleAll}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>
-        <a className="toolbar-link" href="#goals-section">Jump to Goals</a>
-        <a className="toolbar-link" href="#results-section">Jump to Results</a>
+    <>
+      <div className="ingredient-list-actions">
+        <button type="button" className="toolbar-link" onClick={toggleAll} aria-label={`${allExpanded ? 'Collapse' : 'Expand'} all ingredients`}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>
       </div>
       <div className="food-grid">
         {foods.map(food => {
@@ -159,7 +156,7 @@ export default function IngredientList({ foods, setFoods }) {
           );
         })}
       </div>
-    </div>
+    </>
   );
 }
 

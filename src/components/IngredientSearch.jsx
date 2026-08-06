@@ -11,7 +11,7 @@ export default function IngredientSearch({ apiKey, existingIds = new Set(), onAd
   const [results, setResults] = useState([]);
   const [visibleCount, setVisibleCount] = useState(INITIAL_RESULT_COUNT);
   const [dataType, setDataType] = useState(USDA_DATA_TYPES.foundationOnly);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [toast, setToast] = useState(null);
   const searchCounter = useRef(0);
@@ -83,9 +83,6 @@ export default function IngredientSearch({ apiKey, existingIds = new Set(), onAd
           onChange={event => setQuery(event.target.value)}
           placeholder="Search USDA Foundation foods: eggs, oats, spinach..."
         />
-        <button type="submit" disabled>
-          {loading ? 'Searching...' : 'Live search'}
-        </button>
       </form>
       <label className="data-type-filter" htmlFor="usda-data-type">
         <span>USDA data type</span>
