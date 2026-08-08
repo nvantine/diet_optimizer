@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAndSolve } from './solver';
+import { buildAndSolve, generateTradeoffCurve, TRADEOFF_SWEEP_STEP_DEGREES } from './solver';
 
 const constraints = {
   calories: { max: 500 },
@@ -109,5 +109,26 @@ describe('buildAndSolve', () => {
     expect(solution.feasible).toBe(false);
     expect(solution.lp).toContain('cat_protein_max');
     expect(solution.infeasibilityReason).toBe('category-shares');
+  });
+
+  it('generates weighted-sum boundary points and tags only theta strictly between 0 and 90 as Pareto optimal', async () => {
+    const foods = [
+      { id: 'cheap-energy', name: 'Cheap energy', category: 'grain', cost: 1, nutrients: { calories: 200, protein: 5 }, servingBounds: { min: 0, max: 6 } },
+      { id: 'lean-protein', name: 'Lean protein', category: 'protein', cost: 4, nutrients: { calories: 80, protein: 25 }, servingBounds: { min: 0, max: 6 } },
+      { id: 'balanced', name: 'Balanced', category: 'protein', cost: 2.5, nutrients: { calories: 140, protein: 15 }, servingBounds: { min: 0, max: 6 } },
+    ];
+
+    const curve = await generateTradeoffCurve(foods, { protein: { min: 50 }, calories: { max: 900 } }, ['cost', 'calories'], { protein: 0.8, grain: 0.2 }, { stepDegrees: 45 });
+
+    expect(TRADEOFF_SWEEP_STEP_DEGREES).toBe(10);
+    expect(curve.points).toHaveLength(8);
+    expect(curve.points.map(point => point.thetaDegrees)).toEqual([0, 45, 90, 135, 180, 225, 270, 315]);
+    expect(curve.paretoPoints.map(point => point.thetaDegrees)).toEqual([45]);
+    expect(curve.points.find(point => point.thetaDegrees === 0).paretoOptimal).toBe(false);
+    expect(curve.points.find(point => point.thetaDegrees === 90).paretoOptimal).toBe(false);
+    expect(curve.paretoPoints[0].objectiveValues.cost).toBeCloseTo(curve.paretoPoints[0].solution.totalCost, 4);
+    expect(curve.paretoPoints[0].objectiveValues.calories).toBeCloseTo(curve.paretoPoints[0].solution.nutrientTotals.calories, 4);
+    expect(curve.paretoPoints[0].solution.selectedFoods.length).toBeGreaterThan(0);
+    expect(curve.paretoPoints[0].lp).toContain('cat_protein_max');
   });
 });

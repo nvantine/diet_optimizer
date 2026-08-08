@@ -5,6 +5,7 @@ import { NUTRIENTS, NUTRIENT_BY_KEY } from './nutrientMap';
 const DEFAULT_OBJECTIVE = { nutrientKey: 'calories', direction: 'min' };
 const TOLERANCE = 1e-6;
 const COST_KEY = 'cost';
+export const TRADEOFF_SWEEP_STEP_DEGREES = 10;
 let highsPromise;
 
 async function getHighs() {
@@ -35,23 +36,83 @@ export async function buildAndSolve(foods, constraints = {}, objective = DEFAULT
   if (!foods.length) return infeasibleResult(normalizedObjective);
 
   const lp = buildLpProblem(foods, constraints, normalizedObjective, categoryShares);
-  const highs = await getHighs();
-  const raw = highs.solve(lp);
-  const result = normalizeResult(raw, foods, constraints, normalizedObjective, lp, categoryShares);
-  if (result.feasible) {
-    result.dualVerification = verifyFirstBindingDual(highs, foods, constraints, normalizedObjective, result);
-  }
+  const result = await solveLpString(lp, foods, constraints, normalizedObjective, categoryShares, { verifyDual: true });
   return result;
 }
 
 export function buildLpProblem(foods, constraints = {}, objective = DEFAULT_OBJECTIVE, categoryShares = {}) {
   const normalizedObjective = normalizeObjective(objective);
-  const lines = [
-    normalizedObjective.direction === 'max' ? 'Maximize' : 'Minimize',
-    ` obj: ${linearExpression(foods, normalizedObjective.nutrientKey)}`,
-    'Subject To',
-  ];
+  return buildLpDocument({
+    direction: normalizedObjective.direction === 'max' ? 'Maximize' : 'Minimize',
+    objectiveExpression: linearExpression(foods, normalizedObjective.nutrientKey),
+    foods,
+    constraints,
+    categoryShares,
+  });
+}
 
+export function buildWeightedSumLpProblem(foods, constraints = {}, objectiveKeys = [], weights = [], categoryShares = {}) {
+  const normalizedKeys = normalizeObjectiveKeys(objectiveKeys);
+  return buildLpDocument({
+    direction: 'Minimize',
+    objectiveExpression: weightedLinearExpression(foods, normalizedKeys, weights),
+    foods,
+    constraints,
+    categoryShares,
+  });
+}
+
+export async function generateTradeoffCurve(foods, constraints = {}, objectiveKeys = [], categoryShares = {}, options = {}) {
+  const normalizedKeys = normalizeObjectiveKeys(objectiveKeys);
+  const stepDegrees = normalizeStepDegrees(options.stepDegrees ?? TRADEOFF_SWEEP_STEP_DEGREES);
+  if (!foods.length) return emptyTradeoffCurve(normalizedKeys, stepDegrees);
+
+  const highs = await getHighs();
+  const points = [];
+  for (const thetaDegrees of sweepAngles(stepDegrees)) {
+    const radians = (thetaDegrees * Math.PI) / 180;
+    const weights = [round(Math.cos(radians)), round(Math.sin(radians))];
+    // Optional refinement: scale each objective before weighting when magnitudes differ greatly
+    // (for example dollars vs. thousands of calories) to improve point spacing along the curve.
+    const lp = buildWeightedSumLpProblem(foods, constraints, normalizedKeys, weights, categoryShares);
+    const raw = highs.solve(lp);
+    const solution = normalizeResult(raw, foods, constraints, { nutrientKey: normalizedKeys[0], direction: 'min' }, lp, categoryShares);
+    const objectiveValues = Object.fromEntries(normalizedKeys.map(key => [key, metricValue(solution, key)]));
+    const paretoOptimal = thetaDegrees > 0 && thetaDegrees < 90 && weights[0] > 0 && weights[1] > 0;
+    points.push({
+      thetaDegrees,
+      weights: { [normalizedKeys[0]]: weights[0], [normalizedKeys[1]]: weights[1] },
+      feasible: solution.feasible,
+      paretoOptimal,
+      objectiveValues,
+      solution,
+      lp,
+    });
+  }
+
+  const feasiblePoints = points.filter(point => point.feasible);
+  const paretoPoints = feasiblePoints.filter(point => point.paretoOptimal);
+  return {
+    objectives: normalizedKeys,
+    stepDegrees,
+    points,
+    paretoPoints,
+    ranges: buildParetoRanges(paretoPoints, normalizedKeys),
+    sanity: boundarySanity(feasiblePoints, normalizedKeys),
+  };
+}
+
+function buildLpDocument({ direction, objectiveExpression, foods, constraints, categoryShares }) {
+  const lines = [direction, ` obj: ${objectiveExpression}`, 'Subject To'];
+  lines.push(...constraintRows(foods, constraints, categoryShares));
+  lines.push('Bounds');
+  lines.push(...boundRows(foods));
+  lines.push('End');
+  return lines.join('\n');
+}
+
+function constraintRows(foods, constraints = {}, categoryShares = {}) {
+  const lines = [];
   for (const [key, bounds] of Object.entries(constraints || {})) {
     const normalized = normalizeBounds(bounds);
     if (normalized.min != null) {
@@ -62,21 +123,28 @@ export function buildLpProblem(foods, constraints = {}, objective = DEFAULT_OBJE
     }
   }
 
-  for (const row of categoryShareRows(foods, constraints, categoryShares)) lines.push(row);
+  lines.push(...categoryShareRows(foods, constraints, categoryShares));
+  return lines;
+}
 
-  lines.push('Bounds');
-  for (const food of foods) {
+function boundRows(foods) {
+  return foods.map(food => {
     const bounds = normalizeBounds(food.servingBounds || { min: 0, max: food.maxServing ?? 10 });
     const variable = variableName(food.id);
     const lower = bounds.min ?? 0;
-    if (bounds.max != null) {
-      lines.push(` ${formatNumber(lower)} <= ${variable} <= ${formatNumber(bounds.max)}`);
-    } else {
-      lines.push(` ${formatNumber(lower)} <= ${variable}`);
-    }
+    if (bounds.max != null) return ` ${formatNumber(lower)} <= ${variable} <= ${formatNumber(bounds.max)}`;
+    return ` ${formatNumber(lower)} <= ${variable}`;
+  });
+}
+
+async function solveLpString(lp, foods, constraints, objective, categoryShares, options = {}) {
+  const highs = await getHighs();
+  const raw = highs.solve(lp);
+  const result = normalizeResult(raw, foods, constraints, objective, lp, categoryShares);
+  if (options.verifyDual && result.feasible) {
+    result.dualVerification = verifyFirstBindingDual(highs, foods, constraints, objective, result, categoryShares);
   }
-  lines.push('End');
-  return lines.join('\n');
+  return result;
 }
 
 function linearExpression(foods, key) {
@@ -85,6 +153,18 @@ function linearExpression(foods, key) {
     .filter(term => Math.abs(term.coefficient) > TOLERANCE)
     .map(term => `${formatNumber(term.coefficient)} ${term.variable}`);
   return terms.length ? terms.join(' + ') : '0';
+}
+
+function weightedLinearExpression(foods, keys, weights) {
+  const terms = foods
+    .map(food => ({ coefficient: weightedCoefficientFor(food, keys, weights), variable: variableName(food.id) }))
+    .filter(term => Math.abs(term.coefficient) > TOLERANCE)
+    .map(term => `${formatNumber(term.coefficient)} ${term.variable}`);
+  return terms.length ? terms.join(' + ') : '0';
+}
+
+function weightedCoefficientFor(food, keys, weights) {
+  return keys.reduce((total, key, index) => total + toNumber(weights[index], 0) * coefficientFor(food, key), 0);
 }
 
 function categoryShareRows(foods, constraints = {}, categoryShares = {}) {
@@ -162,7 +242,7 @@ function shadowPrice(row, bound) {
   return { dual: round(Math.abs(row.Dual || 0)), rawDual: round(row.Dual || 0), value: round(row.Primal || 0), binding: Math.abs((row.Primal || 0) - bound) <= 1e-5 };
 }
 
-function verifyFirstBindingDual(highs, foods, constraints, objective, solution) {
+function verifyFirstBindingDual(highs, foods, constraints, objective, solution, categoryShares = {}) {
   const epsilon = 1;
   for (const [key, values] of Object.entries(solution.dualValues)) {
     for (const bound of ['min', 'max']) {
@@ -171,9 +251,9 @@ function verifyFirstBindingDual(highs, foods, constraints, objective, solution) 
       const perturbed = structuredCloneConstraints(constraints);
       if (!perturbed[key]) continue;
       perturbed[key][bound] = toNumber(perturbed[key][bound], 0) + (bound === 'min' ? epsilon : -epsilon);
-      const raw = highs.solve(buildLpProblem(foods, perturbed, objective));
+      const raw = highs.solve(buildLpProblem(foods, perturbed, objective, categoryShares));
       if (raw.Status !== 'Optimal') continue;
-      const next = normalizeResult(raw, foods, perturbed, objective, '');
+      const next = normalizeResult(raw, foods, perturbed, objective, '', categoryShares);
       const actualDelta = round(Math.abs(next.objectiveValue - solution.objectiveValue));
       return { nutrientKey: key, bound, epsilon, lambda: dual.dual, predictedDelta: round(dual.dual * epsilon), actualDelta };
     }
@@ -185,10 +265,80 @@ function infeasibleResult(objective = DEFAULT_OBJECTIVE, raw = {}, lp = '', infe
   return { feasible: false, bounded: raw.Status !== 'Unbounded', solver: 'highs.js', objective, objectiveValue: Number.POSITIVE_INFINITY, result: Number.POSITIVE_INFINITY, totalCost: Number.POSITIVE_INFINITY, nutrientTotals: {}, servingsByFoodId: {}, selectedFoods: [], dualValues: {}, dualVerification: null, rawStatus: raw.Status || 'Not solved', infeasibilityReason, lp };
 }
 
+function emptyTradeoffCurve(objectives, stepDegrees) {
+  return { objectives, stepDegrees, points: [], paretoPoints: [], ranges: buildParetoRanges([], objectives), sanity: { closed: false, convex: false } };
+}
+
+function buildParetoRanges(points, keys) {
+  return Object.fromEntries(keys.map(key => {
+    const values = points.map(point => point.objectiveValues[key]).filter(value => Number.isFinite(value));
+    return [key, values.length ? { min: Math.min(...values), max: Math.max(...values) } : { min: null, max: null }];
+  }));
+}
+
+function boundarySanity(points, keys) {
+  const xy = points
+    .map(point => ({ x: point.objectiveValues[keys[0]], y: point.objectiveValues[keys[1]] }))
+    .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+  return { closed: xy.length >= 3, convex: isConvexBoundary(xy) };
+}
+
+function isConvexBoundary(points) {
+  const unique = [];
+  for (const point of points) {
+    const previous = unique.at(-1);
+    if (!previous || Math.abs(previous.x - point.x) > TOLERANCE || Math.abs(previous.y - point.y) > TOLERANCE) unique.push(point);
+  }
+  if (unique.length > 1) {
+    const first = unique[0];
+    const last = unique.at(-1);
+    if (Math.abs(first.x - last.x) <= TOLERANCE && Math.abs(first.y - last.y) <= TOLERANCE) unique.pop();
+  }
+  if (unique.length < 3) return true;
+  let sign = 0;
+  for (let index = 0; index < unique.length; index += 1) {
+    const a = unique[index];
+    const b = unique[(index + 1) % unique.length];
+    const c = unique[(index + 2) % unique.length];
+    const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (Math.abs(cross) <= 1e-5) continue;
+    const nextSign = Math.sign(cross);
+    if (sign && nextSign !== sign) return false;
+    sign = nextSign;
+  }
+  return true;
+}
+
+function metricValue(solution, key) {
+  if (!solution.feasible) return Number.NaN;
+  return key === COST_KEY ? solution.totalCost : solution.nutrientTotals[key] ?? Number.NaN;
+}
+
 function normalizeObjective(objective = DEFAULT_OBJECTIVE) {
-  const nutrientKey = objective.nutrientKey === COST_KEY || NUTRIENT_BY_KEY[objective.nutrientKey] ? objective.nutrientKey : DEFAULT_OBJECTIVE.nutrientKey;
+  const nutrientKey = normalizeObjectiveKey(objective.nutrientKey);
   const direction = objective.direction === 'max' ? 'max' : 'min';
   return { nutrientKey, direction };
+}
+
+function normalizeObjectiveKeys(keys = []) {
+  const normalized = keys.map(key => normalizeObjectiveKey(key));
+  return [normalized[0] || COST_KEY, normalized[1] || DEFAULT_OBJECTIVE.nutrientKey];
+}
+
+function normalizeObjectiveKey(key) {
+  return key === COST_KEY || NUTRIENT_BY_KEY[key] ? key : DEFAULT_OBJECTIVE.nutrientKey;
+}
+
+function normalizeStepDegrees(stepDegrees) {
+  const parsed = Number(stepDegrees);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 180) return TRADEOFF_SWEEP_STEP_DEGREES;
+  return parsed;
+}
+
+function sweepAngles(stepDegrees) {
+  const angles = [];
+  for (let theta = 0; theta < 360 - TOLERANCE; theta += stepDegrees) angles.push(round(theta));
+  return angles;
 }
 
 function normalizeBounds(bounds = {}) {

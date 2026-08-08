@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, Cell, Legend, Pie, PieChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { FOOD_CATEGORY_LABELS } from '../lib/foodCategory';
-import { defaultConstraints, formatNutrientValue, NUTRIENTS, NUTRIENT_BY_KEY, NUTRIENT_TIERS, nutrientIsVisibleInTier } from '../lib/nutrientMap';
+import { defaultConstraints, NUTRIENTS, NUTRIENT_BY_KEY, NUTRIENT_TIERS, nutrientIsVisibleInTier } from '../lib/nutrientMap';
 import { listRandomFoundationFoods, USDA_DATA_TYPES } from '../lib/foodApi';
-import { buildAndSolve } from '../lib/solver';
+import { buildAndSolve, generateTradeoffCurve, TRADEOFF_SWEEP_STEP_DEGREES } from '../lib/solver';
 import ApiKeySettings from './ApiKeySettings';
 import CategoryShareBar from './CategoryShareBar';
 import { defaultSharesForCategories, normalizeShares } from '../lib/categoryShares';
@@ -18,6 +18,8 @@ const FOOD_STORAGE_KEY = 'diet-optimizer-foods';
 const EMPTY_SOLUTION = { feasible: false, solver: 'highs.js', objective: DEFAULT_OBJECTIVE, objectiveValue: Number.POSITIVE_INFINITY, nutrientTotals: {}, servingsByFoodId: {}, selectedFoods: [], dualValues: {}, dualVerification: null, rawStatus: 'Not solved' };
 const CHART_TYPES = [{ key: 'servings', label: 'Servings' }, { key: 'categories', label: 'Category calories' }, { key: 'macros', label: 'Macro donut' }, { key: 'radar', label: 'Constraint radar' }];
 const MACRO_COLORS = ['#a855f7', '#22c55e', '#f59e0b'];
+const OBJECTIVE_OPTIONS = [{ key: 'cost', label: 'Cost', unit: '$' }, ...NUTRIENTS.map(nutrient => ({ key: nutrient.key, label: nutrient.label, unit: nutrient.unit }))];
+const DEFAULT_TRADEOFF_OBJECTIVES = { first: 'cost', second: 'calories' };
 
 export default function DietOptimizer() {
   const [apiKey, setApiKey] = useState('');
@@ -35,6 +37,13 @@ export default function DietOptimizer() {
   const costToastTimer = useRef(null);
   const [solution, setSolution] = useState(EMPTY_SOLUTION);
   const [solving, setSolving] = useState(false);
+  const [tradeoffObjectiveCount, setTradeoffObjectiveCount] = useState('2');
+  const [tradeoffObjectives, setTradeoffObjectives] = useState(DEFAULT_TRADEOFF_OBJECTIVES);
+  const [tradeoffCurve, setTradeoffCurve] = useState(null);
+  const [tradeoffError, setTradeoffError] = useState(null);
+  const [generatingTradeoff, setGeneratingTradeoff] = useState(false);
+  const [selectedParetoIndex, setSelectedParetoIndex] = useState(0);
+  const tradeoffCache = useRef({ key: null, curve: null });
 
   function addFood(food) { setFoods(current => (current.some(existing => existing.id === food.id) ? current : [...current, food])); }
   function updateRandomSetting(key, value) {
@@ -73,6 +82,7 @@ export default function DietOptimizer() {
   }, [activeConstraints]);
   const normalizedCategoryShares = useMemo(() => normalizeShares(categoryShares, presentCategories), [categoryShares, presentCategories]);
   const activeCategoryShares = useMemo(() => (calorieTarget ? Object.fromEntries(Object.entries(normalizedCategoryShares).map(([category, share]) => [category, share / 100])) : {}), [calorieTarget, normalizedCategoryShares]);
+  const tradeoffCacheKey = useMemo(() => JSON.stringify({ foods, constraints: activeConstraints, categoryShares: activeCategoryShares, objectives: tradeoffObjectives }), [foods, activeConstraints, activeCategoryShares, tradeoffObjectives]);
 
   useEffect(() => { localStorage.setItem(FOOD_STORAGE_KEY, JSON.stringify(foods)); }, [foods]);
   useEffect(() => {
@@ -93,6 +103,12 @@ export default function DietOptimizer() {
     buildAndSolve(foods, activeConstraints, objective, activeCategoryShares).then(nextSolution => { if (!cancelled) setSolution(nextSolution); }).catch(error => { if (!cancelled) setSolution({ ...EMPTY_SOLUTION, objective, rawStatus: error.message }); }).finally(() => { if (!cancelled) setSolving(false); });
     return () => { cancelled = true; };
   }, [foods, activeConstraints, objective, activeCategoryShares]);
+  useEffect(() => {
+    setTradeoffCurve(null);
+    setTradeoffError(null);
+    setSelectedParetoIndex(0);
+    tradeoffCache.current = { key: null, curve: null };
+  }, [foods, activeConstraints, activeCategoryShares, tradeoffObjectives]);
 
   const selectedData = useMemo(() => solution.selectedFoods.map(food => ({ id: food.id, name: food.name, servings: food.servings, calories: food.servings * (food.nutrients.calories || 0), cost: food.servings * (food.cost || 0), category: food.category || 'other' })), [solution]);
   const categoryData = useMemo(() => buildCategoryData(solution.selectedFoods), [solution]);
@@ -110,6 +126,43 @@ export default function DietOptimizer() {
     }
   }
 
+  function changeTradeoffObjective(slot, nutrientKey) {
+    setTradeoffObjectives(current => {
+      const next = { ...current, [slot]: nutrientKey };
+      if (next.first === next.second) {
+        const replacement = firstDifferentObjective(nutrientKey);
+        if (slot === 'first') next.second = replacement;
+        else next.first = replacement;
+      }
+      return next;
+    });
+  }
+
+  async function generateTradeoff() {
+    if (tradeoffObjectiveCount !== '2') return;
+    setGeneratingTradeoff(true);
+    setTradeoffError(null);
+    try {
+      if (tradeoffCache.current.key === tradeoffCacheKey && tradeoffCache.current.curve) {
+        setTradeoffCurve(tradeoffCache.current.curve);
+        return;
+      }
+      const curve = await generateTradeoffCurve(foods, activeConstraints, [tradeoffObjectives.first, tradeoffObjectives.second], activeCategoryShares, { stepDegrees: TRADEOFF_SWEEP_STEP_DEGREES });
+      tradeoffCache.current = { key: tradeoffCacheKey, curve };
+      setTradeoffCurve(curve);
+      setSelectedParetoIndex(0);
+    } catch (error) {
+      setTradeoffError(error.message);
+      setTradeoffCurve(null);
+    } finally {
+      setGeneratingTradeoff(false);
+    }
+  }
+
+  const paretoPoints = tradeoffCurve?.paretoPoints || [];
+  const boundedParetoIndex = paretoPoints.length ? Math.min(selectedParetoIndex, paretoPoints.length - 1) : 0;
+  const selectedParetoPoint = paretoPoints[boundedParetoIndex] || null;
+
   return (
     <main className="app-shell">
       <nav className="side-rail" aria-label="Section navigation">
@@ -117,6 +170,7 @@ export default function DietOptimizer() {
         <a href="#goals-section" aria-label="Goals"><span aria-hidden="true">2</span></a>
         <a href="#category-shares-section" aria-label="Category shares"><span aria-hidden="true">3</span></a>
         <a href="#results-section" aria-label="Results"><span aria-hidden="true">5</span></a>
+        <a href="#tradeoff-section" aria-label="Trade-off explorer"><span aria-hidden="true">6</span></a>
       </nav>
       <div className="app-content">
       <section className="hero-panel">
@@ -198,13 +252,123 @@ export default function DietOptimizer() {
           {solution.feasible && <div className="chart-card"><ChartTabs chartType={chartType} setChartType={setChartType} />{chartType === 'servings' && <ServingsTable data={selectedData} />}{chartType === 'categories' && <CategoryStackedChart data={categoryData} foodKeys={categoryFoodKeys} foods={solution.selectedFoods} />}{chartType === 'macros' && <MacroChart data={macroData} />}{chartType === 'radar' && <RadarConstraintsChart data={radarData} />}</div>}
         </section>
       </div>
+      <section id="tradeoff-section" className="card tradeoff-card">
+        <div className="section-heading"><span>6</span><div><h2>Multi-criterion trade-off explorer</h2><p className="muted">Standalone Boyd §4.7 weighted-sum sweep. It runs separate HiGHS solves and does not change the main objective or section 5 result.</p></div></div>
+        <div className="tradeoff-controls">
+          <label htmlFor="tradeoff-objective-count">
+            Number of objectives
+            <select id="tradeoff-objective-count" aria-label="Number of objectives" value={tradeoffObjectiveCount} onChange={event => setTradeoffObjectiveCount(event.target.value)}>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" disabled>3 (coming soon)</option>
+            </select>
+          </label>
+          {tradeoffObjectiveCount === '1' && <p className="muted tradeoff-single-message">Use section 4 for a single linear objective; this explorer is focused on the two-objective Pareto boundary.</p>}
+          {tradeoffObjectiveCount === '2' && (
+            <>
+              <div className="tradeoff-objective-grid">
+                <ObjectiveOptionSelect id="tradeoff-objective-one" label="Trade-off objective 1" value={tradeoffObjectives.first} otherValue={tradeoffObjectives.second} onChange={value => changeTradeoffObjective('first', value)} />
+                <ObjectiveOptionSelect id="tradeoff-objective-two" label="Trade-off objective 2" value={tradeoffObjectives.second} otherValue={tradeoffObjectives.first} onChange={value => changeTradeoffObjective('second', value)} />
+              </div>
+              <button type="button" onClick={generateTradeoff} disabled={generatingTradeoff || foods.length === 0}>{generatingTradeoff ? 'Generating trade-off curve...' : 'Generate trade-off curve'}</button>
+              {foods.length === 0 && <p className="empty-state">Add foods before generating a trade-off curve.</p>}
+              {tradeoffError && <p className="alert">Trade-off solve failed: {tradeoffError}</p>}
+              {generatingTradeoff && <p className="muted">Sweeping θ in {TRADEOFF_SWEEP_STEP_DEGREES}° steps; each point is a separate HiGHS solve.</p>}
+              {tradeoffCurve && <TradeoffOutput curve={tradeoffCurve} objectiveKeys={[tradeoffObjectives.first, tradeoffObjectives.second]} selectedPoint={selectedParetoPoint} selectedIndex={boundedParetoIndex} onSelectIndex={setSelectedParetoIndex} />}
+            </>
+          )}
+        </div>
+      </section>
       </div>
     </main>
   );
 }
 
+function ObjectiveOptionSelect({ id, label, value, otherValue, onChange }) {
+  return (
+    <label htmlFor={id}>
+      {label}
+      <select id={id} aria-label={label} value={value} onChange={event => onChange(event.target.value)}>
+        {OBJECTIVE_OPTIONS.map(option => <option key={option.key} value={option.key} disabled={option.key === otherValue}>{option.label}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function TradeoffOutput({ curve, objectiveKeys, selectedPoint, selectedIndex, onSelectIndex }) {
+  const paretoPoints = curve.paretoPoints || [];
+  const first = objectiveKeys[0];
+  const second = objectiveKeys[1];
+  return (
+    <div className="tradeoff-output">
+      <div className="tradeoff-chart-panel">
+        <TradeoffChart curve={curve} selectedPoint={selectedPoint} objectiveKeys={objectiveKeys} />
+        <p className="muted chart-caption">Pareto-optimal arc is θ∈(0°,90°), where both scalarization weights are positive.</p>
+        <p className="muted">Boundary sanity: {curve.sanity?.closed && curve.sanity?.convex ? 'closed convex curve' : 'check boundary shape'}</p>
+      </div>
+      {paretoPoints.length > 0 ? (
+        <div className="tradeoff-details">
+          <label htmlFor="pareto-point-slider">
+            Pareto point
+            <input id="pareto-point-slider" aria-label="Pareto point" type="range" min="0" max={Math.max(0, paretoPoints.length - 1)} step="1" value={selectedIndex} onChange={event => onSelectIndex(Number(event.target.value))} />
+          </label>
+          <p><strong>Pareto-optimal arc</strong>: selected θ = {selectedPoint.thetaDegrees}°.</p>
+          <div className="tradeoff-exact-values">
+            <div className="stat-card"><span>{objectiveAxisLabel(first)}</span><strong>{formatMetricValue(first, selectedPoint.objectiveValues[first])}</strong></div>
+            <div className="stat-card"><span>{objectiveAxisLabel(second)}</span><strong>{formatMetricValue(second, selectedPoint.objectiveValues[second])}</strong></div>
+          </div>
+          <p className="muted">{objectiveLabel(first)} ranges from {formatMetricValue(first, curve.ranges[first]?.min)} to {formatMetricValue(first, curve.ranges[first]?.max)} across Pareto-optimal solutions.</p>
+          <p className="muted">{objectiveLabel(second)} ranges from {formatMetricValue(second, curve.ranges[second]?.min)} to {formatMetricValue(second, curve.ranges[second]?.max)} across Pareto-optimal solutions.</p>
+          <TradeoffFoodTable foods={selectedPoint.solution.selectedFoods} />
+        </div>
+      ) : <p className="empty-state">No Pareto-optimal θ∈(0°,90°) points were feasible for the current food list and constraints.</p>}
+    </div>
+  );
+}
+
+function TradeoffChart({ curve, selectedPoint, objectiveKeys }) {
+  const width = 720;
+  const height = 420;
+  const padding = { left: 72, right: 28, top: 24, bottom: 58 };
+  const points = (curve.points || []).filter(point => point.feasible && Number.isFinite(point.objectiveValues?.[objectiveKeys[0]]) && Number.isFinite(point.objectiveValues?.[objectiveKeys[1]]));
+  if (points.length === 0) return <p className="empty-state">No feasible boundary points to plot.</p>;
+  const xValues = points.map(point => point.objectiveValues[objectiveKeys[0]]);
+  const yValues = points.map(point => point.objectiveValues[objectiveKeys[1]]);
+  const domain = makeDomain(xValues, yValues);
+  const coords = points.map(point => toChartPoint(point, objectiveKeys, domain, width, height, padding));
+  const paretoCoords = points.filter(point => point.paretoOptimal).map(point => toChartPoint(point, objectiveKeys, domain, width, height, padding));
+  const selectedCoord = selectedPoint ? toChartPoint(selectedPoint, objectiveKeys, domain, width, height, padding) : null;
+  return (
+    <svg className="tradeoff-chart" role="img" aria-label="Trade-off boundary curve" viewBox={`0 0 ${width} ${height}`}>
+      <line className="tradeoff-axis" x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} />
+      <line className="tradeoff-axis" x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} />
+      <path data-testid="tradeoff-boundary-path" className="tradeoff-fill" d={closedPath(coords)} />
+      <path className="tradeoff-boundary" d={closedPath(coords)} />
+      {paretoCoords.length > 1 && <path className="tradeoff-pareto-arc" d={openPath(paretoCoords)} />}
+      {coords.map(coord => <circle key={coord.thetaDegrees} className={coord.paretoOptimal ? 'tradeoff-point tradeoff-point-pareto' : 'tradeoff-point'} cx={coord.x} cy={coord.y} r={coord.paretoOptimal ? 4.5 : 3} />)}
+      {selectedCoord && <circle className="tradeoff-selected-point" cx={selectedCoord.x} cy={selectedCoord.y} r="7" />}
+      <text className="tradeoff-axis-label" x={width / 2} y={height - 14}>{objectiveAxisLabel(objectiveKeys[0])}</text>
+      <text className="tradeoff-axis-label" transform={`translate(18 ${height / 2}) rotate(-90)`}>{objectiveAxisLabel(objectiveKeys[1])}</text>
+    </svg>
+  );
+}
+
+function TradeoffFoodTable({ foods = [] }) {
+  if (!foods.length) return <p className="empty-state">This selected Pareto solve uses zero servings after rounding.</p>;
+  return <div className="table-wrap tradeoff-table-wrap"><table className="servings-table"><thead><tr><th>Food</th><th>Servings (100g units)</th><th>Cost</th><th>Calories contributed</th></tr></thead><tbody>{foods.map(food => <tr key={food.id}><td title={food.name}>{truncateFoodName(food.name)}</td><td>{Number(food.servings || 0).toFixed(2)}</td><td>${((food.cost || 0) * (food.servings || 0)).toFixed(2)}</td><td>{Math.round((food.nutrients?.calories || 0) * (food.servings || 0))} kcal</td></tr>)}</tbody></table></div>;
+}
+
+function firstDifferentObjective(key) { return OBJECTIVE_OPTIONS.find(option => option.key !== key)?.key || 'calories'; }
 function objectiveLabel(key) { return key === 'cost' ? 'cost' : NUTRIENT_BY_KEY[key]?.label || key; }
-function formatObjectiveValue(key, value) { return key === 'cost' ? `$${Number(value).toFixed(2)}` : formatNutrientValue(key, value); }
+function objectiveAxisLabel(key) { const option = OBJECTIVE_OPTIONS.find(item => item.key === key); return option?.unit && option.unit !== '$' ? `${option.label} (${option.unit})` : option?.label || key; }
+function formatObjectiveValue(key, value) { return formatMetricValue(key, value); }
+function formatMetricValue(key, value) { if (value == null || !Number.isFinite(Number(value))) return 'No data'; if (key === 'cost') return `$${Number(value).toFixed(2)}`; const unit = NUTRIENT_BY_KEY[key]?.unit || ''; return `${formatPlainNumber(value)}${unit ? ` ${unit}` : ''}`; }
+function formatPlainNumber(value) { const parsed = Number(value); const rounded = Math.abs(parsed) >= 100 ? Math.round(parsed) : Math.round(parsed * 1000) / 1000; return rounded.toLocaleString(); }
+function makeDomain(xValues, yValues) { return { minX: Math.min(...xValues), maxX: Math.max(...xValues), minY: Math.min(...yValues), maxY: Math.max(...yValues) }; }
+function scale(value, min, max, low, high) { if (Math.abs(max - min) <= 1e-9) return (low + high) / 2; return low + ((value - min) / (max - min)) * (high - low); }
+function toChartPoint(point, objectiveKeys, domain, width, height, padding) { return { ...point, x: scale(point.objectiveValues[objectiveKeys[0]], domain.minX, domain.maxX, padding.left, width - padding.right), y: scale(point.objectiveValues[objectiveKeys[1]], domain.minY, domain.maxY, height - padding.bottom, padding.top) }; }
+function openPath(coords) { return coords.map((coord, index) => `${index === 0 ? 'M' : 'L'} ${coord.x.toFixed(2)} ${coord.y.toFixed(2)}`).join(' '); }
+function closedPath(coords) { return `${openPath(coords)} Z`; }
 function clampNumber(value, min, max, fallback) { const parsed = toFiniteNumber(value, fallback); return Math.min(max, Math.max(min, Math.trunc(parsed))); }
 function toFiniteNumber(value, fallback) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
 function ChartTabs({ chartType, setChartType }) { return <div className="chart-tabs" role="tablist" aria-label="Result chart type">{CHART_TYPES.map(tab => <button key={tab.key} type="button" className={chartType === tab.key ? 'active-tab' : 'ghost'} onClick={() => setChartType(tab.key)}>{tab.label}</button>)}</div>; }

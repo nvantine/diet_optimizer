@@ -668,6 +668,16 @@ legend {
 .objective-stat-card {
   margin-top: 1rem;
   box-shadow: none;
+  min-width: 0;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+.stat-card.objective-stat-card strong {
+  font-size: clamp(1.15rem, 8cqw, 1.65rem);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .stat-card,
@@ -709,6 +719,89 @@ legend {
   background: #11111b !important;
   border: 1px solid var(--border) !important;
   border-radius: 0.75rem;
+}
+
+.tradeoff-card {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.tradeoff-controls,
+.tradeoff-output,
+.tradeoff-details {
+  display: grid;
+  gap: 1rem;
+}
+
+.tradeoff-objective-grid,
+.tradeoff-exact-values {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.tradeoff-chart-panel {
+  background: #0f0f19;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  padding: 1rem;
+}
+
+.tradeoff-chart {
+  display: block;
+  width: 100%;
+  max-height: 460px;
+}
+
+.tradeoff-axis {
+  stroke: rgba(167, 163, 184, 0.5);
+  stroke-width: 1.5;
+}
+
+.tradeoff-axis-label {
+  fill: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.tradeoff-fill {
+  fill: rgba(168, 85, 247, 0.16);
+  stroke: none;
+}
+
+.tradeoff-boundary {
+  fill: none;
+  stroke: rgba(192, 132, 252, 0.48);
+  stroke-width: 2;
+}
+
+.tradeoff-pareto-arc {
+  fill: none;
+  stroke: #facc15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 5;
+}
+
+.tradeoff-point {
+  fill: rgba(192, 132, 252, 0.75);
+  stroke: #0f0f19;
+  stroke-width: 1.5;
+}
+
+.tradeoff-point-pareto {
+  fill: #facc15;
+}
+
+.tradeoff-selected-point {
+  fill: none;
+  stroke: white;
+  stroke-width: 2.5;
+}
+
+.tradeoff-table-wrap table {
+  min-width: 640px;
 }
 
 @media (min-width: 1024px) {
@@ -762,6 +855,11 @@ legend {
   .objective-results-layout {
     align-items: start;
     grid-template-columns: minmax(220px, 0.26fr) minmax(0, 1fr);
+  }
+
+  .tradeoff-output {
+    align-items: start;
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
   }
 }
 
