@@ -37,19 +37,22 @@ vi.mock('../lib/solver', () => ({
     rawStatus: 'Optimal',
   })),
   generateTradeoffCurve: vi.fn(async () => ({
-    objectives: ['cost', 'calories'],
+    objectives: [
+      { nutrientKey: 'protein', direction: 'max' },
+      { nutrientKey: 'calories', direction: 'min' },
+    ],
     stepDegrees: 10,
     points: [
-      { thetaDegrees: 0, feasible: true, paretoOptimal: false, objectiveValues: { cost: 2, calories: 700 }, solution: { selectedFoods: [] } },
-      { thetaDegrees: 10, feasible: true, paretoOptimal: true, objectiveValues: { cost: 2.5, calories: 650 }, solution: { selectedFoods: [{ id: 'trade-a', name: 'Tradeoff oats', servings: 1.25, cost: 0.8, nutrients: { calories: 380 } }] } },
-      { thetaDegrees: 20, feasible: true, paretoOptimal: true, objectiveValues: { cost: 3, calories: 600 }, solution: { selectedFoods: [{ id: 'trade-b', name: 'Tradeoff lentils', servings: 2, cost: 1, nutrients: { calories: 120 } }] } },
-      { thetaDegrees: 90, feasible: true, paretoOptimal: false, objectiveValues: { cost: 5, calories: 500 }, solution: { selectedFoods: [] } },
+      { thetaDegrees: 0, feasible: true, paretoOptimal: false, objectiveValues: { protein: 80, calories: 700 }, solution: { selectedFoods: [] } },
+      { thetaDegrees: 10, feasible: true, paretoOptimal: true, objectiveValues: { protein: 120, calories: 650 }, solution: { selectedFoods: [{ id: 'trade-a', name: 'Tradeoff oats', servings: 1.25, cost: 0.8, nutrients: { calories: 380 } }] } },
+      { thetaDegrees: 20, feasible: true, paretoOptimal: true, objectiveValues: { protein: 150, calories: 600 }, solution: { selectedFoods: [{ id: 'trade-b', name: 'Tradeoff lentils', servings: 2, cost: 1, nutrients: { calories: 120 } }] } },
+      { thetaDegrees: 90, feasible: true, paretoOptimal: false, objectiveValues: { protein: 160, calories: 500 }, solution: { selectedFoods: [] } },
     ],
     paretoPoints: [
-      { thetaDegrees: 10, paretoOptimal: true, objectiveValues: { cost: 2.5, calories: 650 }, solution: { selectedFoods: [{ id: 'trade-a', name: 'Tradeoff oats', servings: 1.25, cost: 0.8, nutrients: { calories: 380 } }] } },
-      { thetaDegrees: 20, paretoOptimal: true, objectiveValues: { cost: 3, calories: 600 }, solution: { selectedFoods: [{ id: 'trade-b', name: 'Tradeoff lentils', servings: 2, cost: 1, nutrients: { calories: 120 } }] } },
+      { thetaDegrees: 10, paretoOptimal: true, objectiveValues: { protein: 120, calories: 650 }, solution: { selectedFoods: [{ id: 'trade-a', name: 'Tradeoff oats', servings: 1.25, cost: 0.8, nutrients: { calories: 380 } }] } },
+      { thetaDegrees: 20, paretoOptimal: true, objectiveValues: { protein: 150, calories: 600 }, solution: { selectedFoods: [{ id: 'trade-b', name: 'Tradeoff lentils', servings: 2, cost: 1, nutrients: { calories: 120 } }] } },
     ],
-    ranges: { cost: { min: 2.5, max: 3 }, calories: { min: 600, max: 650 } },
+    ranges: { protein: { min: 120, max: 150 }, calories: { min: 600, max: 650 } },
     sanity: { closed: true, convex: true },
   })),
 }));
@@ -69,8 +72,10 @@ describe('DietOptimizer trade-off explorer', () => {
     const countSelect = screen.getByLabelText(/Number of objectives/i);
     expect(countSelect).toHaveValue('2');
     expect(screen.getByRole('option', { name: /3 \(coming soon\)/i })).toBeDisabled();
-    expect(screen.getByLabelText(/Trade-off objective 1/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Trade-off objective 2/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Trade-off objective 1$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Trade-off objective 1 direction/i)).toHaveValue('min');
+    expect(screen.getByLabelText(/Trade-off objective 2$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Trade-off objective 2 direction/i)).toHaveValue('min');
   });
 
   it('shows one-objective mode as a pointer back to section 4 instead of duplicating that UI', async () => {
@@ -89,17 +94,24 @@ describe('DietOptimizer trade-off explorer', () => {
 
     await waitFor(() => expect(buildAndSolve).toHaveBeenCalled());
     const mainSolveCount = buildAndSolve.mock.calls.length;
-    await user.selectOptions(screen.getByLabelText(/Trade-off objective 1/i), 'cost');
-    await user.selectOptions(screen.getByLabelText(/Trade-off objective 2/i), 'calories');
+    await user.selectOptions(screen.getByLabelText(/Trade-off objective 1$/i), 'protein');
+    await user.selectOptions(screen.getByLabelText(/Trade-off objective 1 direction/i), 'max');
+    await user.selectOptions(screen.getByLabelText(/Trade-off objective 2$/i), 'calories');
+    await user.selectOptions(screen.getByLabelText(/Trade-off objective 2 direction/i), 'min');
     expect(generateTradeoffCurve).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: /Generate trade-off curve/i }));
 
     await waitFor(() => expect(generateTradeoffCurve).toHaveBeenCalledTimes(1));
-    expect(generateTradeoffCurve).toHaveBeenCalledWith(expect.any(Array), expect.any(Object), ['cost', 'calories'], expect.any(Object), expect.objectContaining({ stepDegrees: 10 }));
+    expect(generateTradeoffCurve).toHaveBeenCalledWith(expect.any(Array), expect.any(Object), [
+      { nutrientKey: 'protein', direction: 'max' },
+      { nutrientKey: 'calories', direction: 'min' },
+    ], expect.any(Object), expect.objectContaining({ stepDegrees: 10 }));
     expect(await screen.findAllByText(/Pareto-optimal arc/i)).toHaveLength(2);
     expect(screen.getByText(/Boundary sanity: closed convex curve/i)).toBeInTheDocument();
     expect(screen.getByTestId('tradeoff-boundary-path')).toHaveAttribute('d', expect.stringMatching(/Z$/));
+    expect(screen.getAllByText(/Maximize Protein \(g\)/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Minimize Energy \(kcal\)/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Tradeoff oats/i)).toBeInTheDocument();
     expect(screen.getByText(/Main solution food/i)).toBeInTheDocument();
 

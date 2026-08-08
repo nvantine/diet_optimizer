@@ -19,7 +19,10 @@ const EMPTY_SOLUTION = { feasible: false, solver: 'highs.js', objective: DEFAULT
 const CHART_TYPES = [{ key: 'servings', label: 'Servings' }, { key: 'categories', label: 'Category calories' }, { key: 'macros', label: 'Macro donut' }, { key: 'radar', label: 'Constraint radar' }];
 const MACRO_COLORS = ['#a855f7', '#22c55e', '#f59e0b'];
 const OBJECTIVE_OPTIONS = [{ key: 'cost', label: 'Cost', unit: '$' }, ...NUTRIENTS.map(nutrient => ({ key: nutrient.key, label: nutrient.label, unit: nutrient.unit }))];
-const DEFAULT_TRADEOFF_OBJECTIVES = { first: 'cost', second: 'calories' };
+const DEFAULT_TRADEOFF_OBJECTIVES = {
+  first: { nutrientKey: 'cost', direction: 'min' },
+  second: { nutrientKey: 'calories', direction: 'min' },
+};
 
 export default function DietOptimizer() {
   const [apiKey, setApiKey] = useState('');
@@ -128,14 +131,18 @@ export default function DietOptimizer() {
 
   function changeTradeoffObjective(slot, nutrientKey) {
     setTradeoffObjectives(current => {
-      const next = { ...current, [slot]: nutrientKey };
-      if (next.first === next.second) {
+      const next = { ...current, [slot]: { ...current[slot], nutrientKey } };
+      if (next.first.nutrientKey === next.second.nutrientKey) {
         const replacement = firstDifferentObjective(nutrientKey);
-        if (slot === 'first') next.second = replacement;
-        else next.first = replacement;
+        if (slot === 'first') next.second = { ...next.second, nutrientKey: replacement };
+        else next.first = { ...next.first, nutrientKey: replacement };
       }
       return next;
     });
+  }
+
+  function changeTradeoffDirection(slot, direction) {
+    setTradeoffObjectives(current => ({ ...current, [slot]: { ...current[slot], direction } }));
   }
 
   async function generateTradeoff() {
@@ -267,20 +274,36 @@ export default function DietOptimizer() {
           {tradeoffObjectiveCount === '2' && (
             <>
               <div className="tradeoff-objective-grid">
-                <ObjectiveOptionSelect id="tradeoff-objective-one" label="Trade-off objective 1" value={tradeoffObjectives.first} otherValue={tradeoffObjectives.second} onChange={value => changeTradeoffObjective('first', value)} />
-                <ObjectiveOptionSelect id="tradeoff-objective-two" label="Trade-off objective 2" value={tradeoffObjectives.second} otherValue={tradeoffObjectives.first} onChange={value => changeTradeoffObjective('second', value)} />
+                <TradeoffObjectiveControls slot="first" label="Trade-off objective 1" objective={tradeoffObjectives.first} otherValue={tradeoffObjectives.second.nutrientKey} onObjectiveChange={value => changeTradeoffObjective('first', value)} onDirectionChange={value => changeTradeoffDirection('first', value)} />
+                <TradeoffObjectiveControls slot="second" label="Trade-off objective 2" objective={tradeoffObjectives.second} otherValue={tradeoffObjectives.first.nutrientKey} onObjectiveChange={value => changeTradeoffObjective('second', value)} onDirectionChange={value => changeTradeoffDirection('second', value)} />
               </div>
               <button type="button" onClick={generateTradeoff} disabled={generatingTradeoff || foods.length === 0}>{generatingTradeoff ? 'Generating trade-off curve...' : 'Generate trade-off curve'}</button>
               {foods.length === 0 && <p className="empty-state">Add foods before generating a trade-off curve.</p>}
               {tradeoffError && <p className="alert">Trade-off solve failed: {tradeoffError}</p>}
               {generatingTradeoff && <p className="muted">Sweeping θ in {TRADEOFF_SWEEP_STEP_DEGREES}° steps; each point is a separate HiGHS solve.</p>}
-              {tradeoffCurve && <TradeoffOutput curve={tradeoffCurve} objectiveKeys={[tradeoffObjectives.first, tradeoffObjectives.second]} selectedPoint={selectedParetoPoint} selectedIndex={boundedParetoIndex} onSelectIndex={setSelectedParetoIndex} />}
+              {tradeoffCurve && <TradeoffOutput curve={tradeoffCurve} objectives={[tradeoffObjectives.first, tradeoffObjectives.second]} selectedPoint={selectedParetoPoint} selectedIndex={boundedParetoIndex} onSelectIndex={setSelectedParetoIndex} />}
             </>
           )}
         </div>
       </section>
       </div>
     </main>
+  );
+}
+
+function TradeoffObjectiveControls({ slot, label, objective, otherValue, onObjectiveChange, onDirectionChange }) {
+  const suffix = slot === 'first' ? 'one' : 'two';
+  return (
+    <div className="tradeoff-objective-control">
+      <ObjectiveOptionSelect id={`tradeoff-objective-${suffix}`} label={label} value={objective.nutrientKey} otherValue={otherValue} onChange={onObjectiveChange} />
+      <label htmlFor={`tradeoff-objective-${suffix}-direction`}>
+        {label} direction
+        <select id={`tradeoff-objective-${suffix}-direction`} aria-label={`${label} direction`} value={objective.direction} onChange={event => onDirectionChange(event.target.value)}>
+          <option value="min">Minimize</option>
+          <option value="max">Maximize</option>
+        </select>
+      </label>
+    </div>
   );
 }
 
@@ -295,14 +318,16 @@ function ObjectiveOptionSelect({ id, label, value, otherValue, onChange }) {
   );
 }
 
-function TradeoffOutput({ curve, objectiveKeys, selectedPoint, selectedIndex, onSelectIndex }) {
+function TradeoffOutput({ curve, objectives, selectedPoint, selectedIndex, onSelectIndex }) {
   const paretoPoints = curve.paretoPoints || [];
-  const first = objectiveKeys[0];
-  const second = objectiveKeys[1];
+  const first = objectives[0];
+  const second = objectives[1];
+  const firstKey = first.nutrientKey;
+  const secondKey = second.nutrientKey;
   return (
     <div className="tradeoff-output">
       <div className="tradeoff-chart-panel">
-        <TradeoffChart curve={curve} selectedPoint={selectedPoint} objectiveKeys={objectiveKeys} />
+        <TradeoffChart curve={curve} selectedPoint={selectedPoint} objectives={objectives} />
         <p className="muted chart-caption">Pareto-optimal arc is θ∈(0°,90°), where both scalarization weights are positive.</p>
         <p className="muted">Boundary sanity: {curve.sanity?.closed && curve.sanity?.convex ? 'closed convex curve' : 'check boundary shape'}</p>
       </div>
@@ -314,11 +339,11 @@ function TradeoffOutput({ curve, objectiveKeys, selectedPoint, selectedIndex, on
           </label>
           <p><strong>Pareto-optimal arc</strong>: selected θ = {selectedPoint.thetaDegrees}°.</p>
           <div className="tradeoff-exact-values">
-            <div className="stat-card"><span>{objectiveAxisLabel(first)}</span><strong>{formatMetricValue(first, selectedPoint.objectiveValues[first])}</strong></div>
-            <div className="stat-card"><span>{objectiveAxisLabel(second)}</span><strong>{formatMetricValue(second, selectedPoint.objectiveValues[second])}</strong></div>
+            <div className="stat-card"><span>{objectiveAxisLabel(first)}</span><strong>{formatMetricValue(firstKey, selectedPoint.objectiveValues[firstKey])}</strong></div>
+            <div className="stat-card"><span>{objectiveAxisLabel(second)}</span><strong>{formatMetricValue(secondKey, selectedPoint.objectiveValues[secondKey])}</strong></div>
           </div>
-          <p className="muted">{objectiveLabel(first)} ranges from {formatMetricValue(first, curve.ranges[first]?.min)} to {formatMetricValue(first, curve.ranges[first]?.max)} across Pareto-optimal solutions.</p>
-          <p className="muted">{objectiveLabel(second)} ranges from {formatMetricValue(second, curve.ranges[second]?.min)} to {formatMetricValue(second, curve.ranges[second]?.max)} across Pareto-optimal solutions.</p>
+          <p className="muted">{objectiveLabel(firstKey)} ranges from {formatMetricValue(firstKey, curve.ranges[firstKey]?.min)} to {formatMetricValue(firstKey, curve.ranges[firstKey]?.max)} across Pareto-optimal solutions.</p>
+          <p className="muted">{objectiveLabel(secondKey)} ranges from {formatMetricValue(secondKey, curve.ranges[secondKey]?.min)} to {formatMetricValue(secondKey, curve.ranges[secondKey]?.max)} across Pareto-optimal solutions.</p>
           <TradeoffFoodTable foods={selectedPoint.solution.selectedFoods} />
         </div>
       ) : <p className="empty-state">No Pareto-optimal θ∈(0°,90°) points were feasible for the current food list and constraints.</p>}
@@ -326,10 +351,11 @@ function TradeoffOutput({ curve, objectiveKeys, selectedPoint, selectedIndex, on
   );
 }
 
-function TradeoffChart({ curve, selectedPoint, objectiveKeys }) {
+function TradeoffChart({ curve, selectedPoint, objectives }) {
   const width = 720;
   const height = 420;
   const padding = { left: 72, right: 28, top: 24, bottom: 58 };
+  const objectiveKeys = objectives.map(objective => objective.nutrientKey);
   const points = (curve.points || []).filter(point => point.feasible && Number.isFinite(point.objectiveValues?.[objectiveKeys[0]]) && Number.isFinite(point.objectiveValues?.[objectiveKeys[1]]));
   if (points.length === 0) return <p className="empty-state">No feasible boundary points to plot.</p>;
   const xValues = points.map(point => point.objectiveValues[objectiveKeys[0]]);
@@ -347,8 +373,8 @@ function TradeoffChart({ curve, selectedPoint, objectiveKeys }) {
       {paretoCoords.length > 1 && <path className="tradeoff-pareto-arc" d={openPath(paretoCoords)} />}
       {coords.map(coord => <circle key={coord.thetaDegrees} className={coord.paretoOptimal ? 'tradeoff-point tradeoff-point-pareto' : 'tradeoff-point'} cx={coord.x} cy={coord.y} r={coord.paretoOptimal ? 4.5 : 3} />)}
       {selectedCoord && <circle className="tradeoff-selected-point" cx={selectedCoord.x} cy={selectedCoord.y} r="7" />}
-      <text className="tradeoff-axis-label" x={width / 2} y={height - 14}>{objectiveAxisLabel(objectiveKeys[0])}</text>
-      <text className="tradeoff-axis-label" transform={`translate(18 ${height / 2}) rotate(-90)`}>{objectiveAxisLabel(objectiveKeys[1])}</text>
+      <text className="tradeoff-axis-label" x={width / 2} y={height - 14}>{objectiveAxisLabel(objectives[0])}</text>
+      <text className="tradeoff-axis-label" transform={`translate(18 ${height / 2}) rotate(-90)`}>{objectiveAxisLabel(objectives[1])}</text>
     </svg>
   );
 }
@@ -360,7 +386,7 @@ function TradeoffFoodTable({ foods = [] }) {
 
 function firstDifferentObjective(key) { return OBJECTIVE_OPTIONS.find(option => option.key !== key)?.key || 'calories'; }
 function objectiveLabel(key) { return key === 'cost' ? 'cost' : NUTRIENT_BY_KEY[key]?.label || key; }
-function objectiveAxisLabel(key) { const option = OBJECTIVE_OPTIONS.find(item => item.key === key); return option?.unit && option.unit !== '$' ? `${option.label} (${option.unit})` : option?.label || key; }
+function objectiveAxisLabel(objective) { const key = typeof objective === 'string' ? objective : objective.nutrientKey; const direction = typeof objective === 'string' ? null : objective.direction; const option = OBJECTIVE_OPTIONS.find(item => item.key === key); const directionLabel = direction === 'max' ? 'Maximize ' : direction === 'min' ? 'Minimize ' : ''; return `${directionLabel}${option?.unit && option.unit !== '$' ? `${option.label} (${option.unit})` : option?.label || key}`; }
 function formatObjectiveValue(key, value) { return formatMetricValue(key, value); }
 function formatMetricValue(key, value) { if (value == null || !Number.isFinite(Number(value))) return 'No data'; if (key === 'cost') return `$${Number(value).toFixed(2)}`; const unit = NUTRIENT_BY_KEY[key]?.unit || ''; return `${formatPlainNumber(value)}${unit ? ` ${unit}` : ''}`; }
 function formatPlainNumber(value) { const parsed = Number(value); const rounded = Math.abs(parsed) >= 100 ? Math.round(parsed) : Math.round(parsed * 1000) / 1000; return rounded.toLocaleString(); }

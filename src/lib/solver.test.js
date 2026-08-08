@@ -131,4 +131,26 @@ describe('buildAndSolve', () => {
     expect(curve.paretoPoints[0].solution.selectedFoods.length).toBeGreaterThan(0);
     expect(curve.paretoPoints[0].lp).toContain('cat_protein_max');
   });
+
+  it('supports mixed maximize/minimize trade-off objectives by negating maximized metrics in the weighted solve', async () => {
+    const foods = [
+      { id: 'low-cal', name: 'Low calorie filler', nutrients: { calories: 100, protein: 5 }, servingBounds: { min: 0, max: 5 } },
+      { id: 'high-protein', name: 'High protein food', nutrients: { calories: 150, protein: 300 }, servingBounds: { min: 0, max: 5 } },
+    ];
+
+    const curve = await generateTradeoffCurve(foods, { calories: { max: 500 } }, [
+      { nutrientKey: 'protein', direction: 'max' },
+      { nutrientKey: 'calories', direction: 'min' },
+    ], {}, { stepDegrees: 45 });
+    const pareto = curve.paretoPoints[0];
+
+    expect(curve.objectives).toEqual([
+      { nutrientKey: 'protein', direction: 'max' },
+      { nutrientKey: 'calories', direction: 'min' },
+    ]);
+    expect(pareto.objectiveValues.protein).toBeCloseTo(1000, 2);
+    expect(pareto.objectiveValues.calories).toBeCloseTo(500, 2);
+    expect(pareto.solution.servingsByFoodId['high-protein']).toBeCloseTo(10 / 3, 3);
+    expect(pareto.lp).toMatch(/obj: .* - [0-9.]+ food_high_protein/);
+  });
 });

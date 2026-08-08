@@ -51,21 +51,22 @@ export function buildLpProblem(foods, constraints = {}, objective = DEFAULT_OBJE
   });
 }
 
-export function buildWeightedSumLpProblem(foods, constraints = {}, objectiveKeys = [], weights = [], categoryShares = {}) {
-  const normalizedKeys = normalizeObjectiveKeys(objectiveKeys);
+export function buildWeightedSumLpProblem(foods, constraints = {}, objectives = [], weights = [], categoryShares = {}) {
+  const normalizedObjectives = normalizeTradeoffObjectives(objectives);
   return buildLpDocument({
     direction: 'Minimize',
-    objectiveExpression: weightedLinearExpression(foods, normalizedKeys, weights),
+    objectiveExpression: weightedLinearExpression(foods, normalizedObjectives, weights),
     foods,
     constraints,
     categoryShares,
   });
 }
 
-export async function generateTradeoffCurve(foods, constraints = {}, objectiveKeys = [], categoryShares = {}, options = {}) {
-  const normalizedKeys = normalizeObjectiveKeys(objectiveKeys);
+export async function generateTradeoffCurve(foods, constraints = {}, objectives = [], categoryShares = {}, options = {}) {
+  const normalizedObjectives = normalizeTradeoffObjectives(objectives);
+  const objectiveKeys = normalizedObjectives.map(objective => objective.nutrientKey);
   const stepDegrees = normalizeStepDegrees(options.stepDegrees ?? TRADEOFF_SWEEP_STEP_DEGREES);
-  if (!foods.length) return emptyTradeoffCurve(normalizedKeys, stepDegrees);
+  if (!foods.length) return emptyTradeoffCurve(normalizedObjectives, stepDegrees);
 
   const highs = await getHighs();
   const points = [];
@@ -74,14 +75,15 @@ export async function generateTradeoffCurve(foods, constraints = {}, objectiveKe
     const weights = [round(Math.cos(radians)), round(Math.sin(radians))];
     // Optional refinement: scale each objective before weighting when magnitudes differ greatly
     // (for example dollars vs. thousands of calories) to improve point spacing along the curve.
-    const lp = buildWeightedSumLpProblem(foods, constraints, normalizedKeys, weights, categoryShares);
+    // Maximized objectives are transformed to minimization form by negating their coefficients.
+    const lp = buildWeightedSumLpProblem(foods, constraints, normalizedObjectives, weights, categoryShares);
     const raw = highs.solve(lp);
-    const solution = normalizeResult(raw, foods, constraints, { nutrientKey: normalizedKeys[0], direction: 'min' }, lp, categoryShares);
-    const objectiveValues = Object.fromEntries(normalizedKeys.map(key => [key, metricValue(solution, key)]));
+    const solution = normalizeResult(raw, foods, constraints, normalizedObjectives[0], lp, categoryShares);
+    const objectiveValues = Object.fromEntries(objectiveKeys.map(key => [key, metricValue(solution, key)]));
     const paretoOptimal = thetaDegrees > 0 && thetaDegrees < 90 && weights[0] > 0 && weights[1] > 0;
     points.push({
       thetaDegrees,
-      weights: { [normalizedKeys[0]]: weights[0], [normalizedKeys[1]]: weights[1] },
+      weights: Object.fromEntries(normalizedObjectives.map((objective, index) => [objective.nutrientKey, weights[index]])),
       feasible: solution.feasible,
       paretoOptimal,
       objectiveValues,
@@ -93,12 +95,12 @@ export async function generateTradeoffCurve(foods, constraints = {}, objectiveKe
   const feasiblePoints = points.filter(point => point.feasible);
   const paretoPoints = feasiblePoints.filter(point => point.paretoOptimal);
   return {
-    objectives: normalizedKeys,
+    objectives: normalizedObjectives,
     stepDegrees,
     points,
     paretoPoints,
-    ranges: buildParetoRanges(paretoPoints, normalizedKeys),
-    sanity: boundarySanity(feasiblePoints, normalizedKeys),
+    ranges: buildParetoRanges(paretoPoints, normalizedObjectives),
+    sanity: boundarySanity(feasiblePoints, normalizedObjectives),
   };
 }
 
@@ -155,16 +157,27 @@ function linearExpression(foods, key) {
   return terms.length ? terms.join(' + ') : '0';
 }
 
-function weightedLinearExpression(foods, keys, weights) {
+function weightedLinearExpression(foods, objectives, weights) {
   const terms = foods
-    .map(food => ({ coefficient: weightedCoefficientFor(food, keys, weights), variable: variableName(food.id) }))
-    .filter(term => Math.abs(term.coefficient) > TOLERANCE)
-    .map(term => `${formatNumber(term.coefficient)} ${term.variable}`);
-  return terms.length ? terms.join(' + ') : '0';
+    .map(food => ({ coefficient: weightedCoefficientFor(food, objectives, weights), variable: variableName(food.id) }))
+    .filter(term => Math.abs(term.coefficient) > TOLERANCE);
+  return linearTermsExpression(terms);
 }
 
-function weightedCoefficientFor(food, keys, weights) {
-  return keys.reduce((total, key, index) => total + toNumber(weights[index], 0) * coefficientFor(food, key), 0);
+function weightedCoefficientFor(food, objectives, weights) {
+  return objectives.reduce((total, objective, index) => {
+    const directionSign = objective.direction === 'max' ? -1 : 1;
+    return total + toNumber(weights[index], 0) * directionSign * coefficientFor(food, objective.nutrientKey);
+  }, 0);
+}
+
+function linearTermsExpression(terms) {
+  if (!terms.length) return '0';
+  return terms.map((term, index) => {
+    if (index === 0) return `${formatNumber(term.coefficient)} ${term.variable}`;
+    const sign = term.coefficient < 0 ? '-' : '+';
+    return `${sign} ${formatNumber(Math.abs(term.coefficient))} ${term.variable}`;
+  }).join(' ');
 }
 
 function categoryShareRows(foods, constraints = {}, categoryShares = {}) {
@@ -269,14 +282,16 @@ function emptyTradeoffCurve(objectives, stepDegrees) {
   return { objectives, stepDegrees, points: [], paretoPoints: [], ranges: buildParetoRanges([], objectives), sanity: { closed: false, convex: false } };
 }
 
-function buildParetoRanges(points, keys) {
-  return Object.fromEntries(keys.map(key => {
+function buildParetoRanges(points, objectives) {
+  return Object.fromEntries(objectives.map(objective => {
+    const key = objective.nutrientKey;
     const values = points.map(point => point.objectiveValues[key]).filter(value => Number.isFinite(value));
     return [key, values.length ? { min: Math.min(...values), max: Math.max(...values) } : { min: null, max: null }];
   }));
 }
 
-function boundarySanity(points, keys) {
+function boundarySanity(points, objectives) {
+  const keys = objectives.map(objective => objective.nutrientKey);
   const xy = points
     .map(point => ({ x: point.objectiveValues[keys[0]], y: point.objectiveValues[keys[1]] }))
     .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
@@ -320,9 +335,15 @@ function normalizeObjective(objective = DEFAULT_OBJECTIVE) {
   return { nutrientKey, direction };
 }
 
-function normalizeObjectiveKeys(keys = []) {
-  const normalized = keys.map(key => normalizeObjectiveKey(key));
-  return [normalized[0] || COST_KEY, normalized[1] || DEFAULT_OBJECTIVE.nutrientKey];
+function normalizeTradeoffObjectives(objectives = []) {
+  const normalized = objectives.map(objective => {
+    if (typeof objective === 'string') return { nutrientKey: normalizeObjectiveKey(objective), direction: 'min' };
+    return normalizeObjective(objective);
+  });
+  return [
+    normalized[0] || { nutrientKey: COST_KEY, direction: 'min' },
+    normalized[1] || { ...DEFAULT_OBJECTIVE },
+  ];
 }
 
 function normalizeObjectiveKey(key) {
